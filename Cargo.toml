@@ -1,0 +1,11 @@
+[package]
+name = "image-viewer"
+version = "0.1.0"
+authors = ["lazypassion <25536767+lazypassion@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+druid = { git = "https://github.com/linebender/druid.git" }
+image = "0.23"
