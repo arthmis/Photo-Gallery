@@ -52,8 +52,8 @@ fn main() {
             } else {
                 data.current_image -= 1;
             }
-            dbg!(data.current_image);
-            dbg!(&data.images[data.current_image]);
+            // dbg!(data.current_image);
+            // dbg!(&data.images[data.current_image]);
         })
         .fix_size(button_width, button_height);
 
@@ -68,8 +68,8 @@ fn main() {
                     } else {
                         data.current_image += 1;
                     }
-                    dbg!(data.current_image);
-                    dbg!(&data.images[data.current_image]);
+                    // dbg!(data.current_image);
+                    // dbg!(&data.images[data.current_image]);
                 })
                 .fix_size(button_width, button_height);
 

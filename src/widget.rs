@@ -49,11 +49,11 @@ impl Widget<AppState> for DisplayImage {
                     .map(|path| path.unwrap().path())
                     .collect();
 
-                let new_paths = Arc::new(paths);
-                data.images = new_paths;
+                data.images = Arc::new(paths);
                 data.current_image = 0;
-                dbg!(&data.images, &data.current_image);
+                // dbg!(&data.images, &data.current_image);
 
+                ctx.request_layout();
                 ctx.request_paint();
             }
             _ => (),
