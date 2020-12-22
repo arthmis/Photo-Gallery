@@ -30,40 +30,12 @@ const IMAGE_FOLDER: &str = "./images";
 
 fn main() {
     let root = move || {
-        // let left_button = Container::new(Label::new("Left"))
-        //     .padding(10.0)
-        //     .background(druid::Color::rgb8(0xdd, 0xdd, 0xdd))
-        //     // .rounded(druid::Value::Float(10.0));
-        //     .border(druid::Color::rgb8(0, 0, 0), 0.0)
-        //     .rounded(5.0)
-        //     .on_click(|_ctx, data: &mut AppState, _env| {
-        //         if data.current_image == 0 {
-        //             data.current_image = data.images.len() - 1;
-        //         } else {
-        //             data.current_image -= 1;
-        //         }
-        //         dbg!(data.current_image);
-        //     });
-        // let right_button = {
-        //     let right_button = Button::new("right").on_click(|_ctx, data: &mut AppState, _env| {
-        //         if data.images.is_empty() {
-        //             return;
-        //         }
-        //         if data.current_image == data.images.len() - 1 {
-        //             data.current_image = 0
-        //         } else {
-        //             data.current_image += 1;
-        //         }
-        //         dbg!(data.current_image);
-        //     });
-        //     let right_button = Padding::new(10.0, right_button);
-        //     Container::new(right_button)
-        // };
         let (button_width, button_height) = (50.0, 1000.0);
         let font_color = Color::rgb8(0, 0, 0);
         let bg_color = Color::rgb8(0xff, 0xff, 0xff);
         let hover_color = Color::rgb8(0xcc, 0xcc, 0xcc);
         let active_color = Color::rgb8(0x90, 0x90, 0x90);
+
         let left_button = crate::widget::Button::new(
             "❮",
             font_color.clone(),
@@ -127,10 +99,6 @@ fn main() {
             .background(druid::Color::rgb8(255, 255, 255))
             .expand();
         child
-        // SizedBox::new(child).width(800.0).height(800.0)
-
-        // let alignment = Align::centered(layout);
-        // Container::new(alignment).background(druid::Color::rgb8(0x58, 0x55, 0x63))
     };
 
     let menu = {
@@ -148,20 +116,6 @@ fn main() {
     };
     let window = WindowDesc::new(root).menu(menu);
 
-    // let paths: Vec<PathBuf> = std::fs::read_dir(IMAGE_FOLDER)
-    //     .unwrap()
-    //     .map(|path| path.unwrap().path())
-    //     .collect();
-
-    // dbg!(paths);
-    // let raw_pixels = image::io::Reader::open(&paths[0])
-    //     .unwrap()
-    //     .decode()
-    //     .unwrap()
-    //     .into_rgb8();
-    // let (width, height) = raw_pixels.dimensions();
-    // let image = Rc::new(raw_pixels.into_vec());
-    // let image = raw_pixels.clone();
     AppLauncher::with_window(window)
         .use_simple_logger()
         // .launch("Hello World".to_string())
