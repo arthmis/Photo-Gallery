@@ -219,10 +219,7 @@ impl<T: Data> Widget<T> for Button<T> {
                 (self.hover_color.clone(), self.hover_color.clone())
             }
         } else {
-            (
-                self.background_color.clone(),
-                self.background_color.clone().clone(),
-            )
+            (self.background_color.clone(), self.background_color.clone())
         };
 
         ctx.stroke(rect, &border_color, stroke_width);
