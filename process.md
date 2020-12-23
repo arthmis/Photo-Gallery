@@ -81,3 +81,165 @@ AppLauncher::with_window(window)
 
 Now you can do `cargo run`. You should get two buttons next to each other. When you click them it should print the new `current_image`. If it doesn't go back to the `on_click` closures and print `current_image` to see how they change. With this, now you can navigate through images. Now we'll have to figure out how display the image between the two buttons.
 
+Now we want to get into the most important part of the project; which is displaying the images. 
+
+We'll have to create a custom widget, but it won't be too complicated. We'll call the widget `DisplayImage` and it will store the `Image` widget.
+```rust
+#[derive(Clone, Data, Lens)]
+pub struct DisplayImage {
+    pub image: Rc<Image>,
+}
+```
+
+Now we'll implement `Widget` for `DisplayImage` like so:
+
+```rust
+impl Widget<AppState> for DisplayImage {
+    // we won't be responding to any events
+    // Display image will only display the image
+    fn event(
+        &mut self,
+        ctx: &mut druid::EventCtx,
+        event: &druid::Event,
+        data: &mut AppState,
+        env: &Env,
+    ) {}
+
+    // same thing here, DisplayImage won't be dealing with 
+    // lifecycle details
+    fn lifecycle(
+        &mut self,
+        ctx: &mut druid::LifeCycleCtx,
+        event: &druid::LifeCycle,
+        data: &AppState,
+        env: &Env,
+    ) {}
+
+    fn update(
+        &mut self,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &AppState,
+        data: &AppState,
+        env: &Env,
+    ) {
+        // handles the case where the directory might be empty
+        // nothing should happen
+        // you should be using a directory with only images anyways :)
+        if data.images.is_empty() {
+            return;
+        }
+
+        // compare the index of the current image with the index of the
+        // old image 
+        // if it is different then read in the new image and replace
+        // self.image with the new image
+        if data.current_image != old_data.current_image {
+            let image = image::io::Reader::open(&data.images[data.current_image])
+                .unwrap()
+                .decode()
+                .unwrap()
+                .into_rgb8();
+            let (width, height) = image.dimensions();
+            let image = ImageBuf::from_raw(
+                image.into_raw(),
+                ImageFormat::Rgb,
+                width as usize,
+                height as usize,
+            );
+            let image = Image::new(image).interpolation_mode(InterpolationMode::Bilinear);
+            self.image = Rc::new(image);
+            // request a paint here because the image has changed and you
+            // want Druid to draw the new image
+            // I think i might also want to call ctx.request_layout()?
+            ctx.request_paint();
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut druid::LayoutCtx,
+        bc: &druid::BoxConstraints,
+        data: &AppState,
+        env: &Env,
+    ) -> druid::Size {
+        // here we defer layouting to the underlying Image widget
+        // This makes our life easier, since we won't have to implement
+        // a custom image widget
+        Rc::get_mut(&mut self.image)
+            .unwrap()
+            .layout(ctx, bc, data, env)
+    }
+
+    fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &AppState, env: &Env) {
+        // again defer painting to the underlying image
+        Rc::get_mut(&mut self.image).unwrap().paint(ctx, data, env);
+    }
+}
+```
+
+With this `DisplayImage` widget we can use this and put it between our `left` and `right` buttons. We want to first read in the first image in the folder.
+
+```rust
+    // read in all the paths found in the folder
+
+    // this way you'll have access to the first image in the closure
+    // that builds the root UI
+    let first_image = image::io::Reader::open(&paths[0])
+        .unwrap()
+        .decode()
+        .unwrap()
+        .into_rgb8();
+    let (width, height) = first_image.dimensions();
+    let image = Rc::new(first_image.into_vec());
+    let image = first_image.clone();
+
+    // root UI builder closure
+```
+
+```rust
+    // this code goes above the layout builder
+
+    // build the image by turning the image into an ImageBuf
+    let image = ImageBuf::from_raw(
+        first_image.to_vec(),
+        ImageFormat::Rgb,
+        width as usize,
+        height as usize,
+    );
+
+    // create the image widget from the ImageBuf
+    // interpolation mode tells Druid how what algorithm to use when
+    // resizing the image
+    let image = Image::new(image)
+        .interpolation_mode(InterpolationMode::Bilinear)
+        .fill_mode(FillStrat::Contain);
+
+    // now wrap image widget in our DisplayImage widget with Rc
+    let image = DisplayImage {
+        image: Rc::new(image),
+    };
+
+```
+
+Now we want to modify the layout builder to include our new widget and add some more parameters for the widget's display.
+
+```rust
+    let layout = Flex::row()
+        // tells Druid that we want this to fill its parent
+        // the parent is the window basically, so this will take up all the
+        // the space in the window
+        .must_fill_main_axis(true)
+        .with_child(left_button)
+        // makes the image a flex child so it will take up a large amount
+        // of space, the flex params tell it how much larger it should be
+        // relative to its siblings
+        .with_flex_child(image, FlexParams::new(1.0, None))
+        .with_child(right_button)
+        // centers the child widgets vertically
+        .cross_axis_alignment(CrossAxisAlignment::Center)
+        // puts space between each child
+        // this essentially centers the image, and moves the left and right
+        // buttons to their respective sides of the window
+        .main_axis_alignment(MainAxisAlignment::SpaceBetween);
+```
+

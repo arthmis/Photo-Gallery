@@ -95,10 +95,7 @@ fn main() {
             .cross_axis_alignment(CrossAxisAlignment::Center)
             .main_axis_alignment(MainAxisAlignment::SpaceBetween);
 
-        let child = Container::new(layout)
-            .background(druid::Color::rgb8(255, 255, 255))
-            .expand();
-        child
+        Container::new(layout).background(druid::Color::rgb8(255, 255, 255))
     };
 
     let menu = {
@@ -114,11 +111,10 @@ fn main() {
         };
         menu.append(open).append_separator()
     };
-    let window = WindowDesc::new(root).menu(menu);
+    let window = WindowDesc::new(root).menu(menu).title("Gallery");
 
     AppLauncher::with_window(window)
         .use_simple_logger()
-        // .launch("Hello World".to_string())
         .launch(AppState {
             images: Arc::new(Vec::new()),
             current_image: 0,
