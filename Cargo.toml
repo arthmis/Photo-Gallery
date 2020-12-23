@@ -9,3 +9,6 @@ edition = "2018"
 [dependencies]
 druid = { git = "https://github.com/linebender/druid.git" }
 image = "0.23"
+
+[profile.dev]
+opt-level = 1
