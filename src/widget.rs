@@ -8,10 +8,12 @@ use druid::{
     self,
     piet::{ImageFormat, InterpolationMode},
     widget::{Label, LabelText},
-    Affine, Color, Env, Event, FileInfo, ImageBuf, LifeCycle, RenderContext, Selector, Size,
+    Affine, Color, Env, Event, FileInfo, ImageBuf, LifeCycle, RenderContext,
+    Selector, Size,
 };
 
-use druid::widget::Image;
+// use druid::widget::Image;
+use crate::image_widget::Image;
 use druid::{Data, Lens, Widget, WidgetExt};
 use image::imageops::thumbnail;
 
@@ -31,6 +33,7 @@ impl Widget<AppState> for DisplayImage {
     ) {
         match event {
             Event::Command(open) => {
+                dbg!("got open command in display image");
                 // I don't know if this is right
                 // if I don't return here, the application crashes everytime
                 // I close it because of unwrap() and can't find selector
@@ -82,12 +85,15 @@ impl Widget<AppState> for DisplayImage {
         if data.images.is_empty() {
             return;
         }
-        if data.current_image != old_data.current_image || data.images != old_data.images {
-            let image = image::io::Reader::open(&data.images[data.current_image])
-                .unwrap()
-                .decode()
-                .unwrap()
-                .into_rgb8();
+        if data.current_image != old_data.current_image
+            || data.images != old_data.images
+        {
+            let image =
+                image::io::Reader::open(&data.images[data.current_image])
+                    .unwrap()
+                    .decode()
+                    .unwrap()
+                    .into_rgb8();
             let (width, height) = image.dimensions();
             let image = ImageBuf::from_raw(
                 image.into_raw(),
@@ -96,8 +102,10 @@ impl Widget<AppState> for DisplayImage {
                 height as usize,
             );
             // dbg!(width, height);
-            let image = Image::new(image).interpolation_mode(InterpolationMode::Bilinear);
+            let image = Image::new(image)
+                .interpolation_mode(InterpolationMode::Bilinear);
             self.image = Rc::new(image);
+            ctx.request_layout();
             ctx.request_paint();
         }
     }
@@ -227,7 +235,13 @@ impl<T: Data> Button<T> {
 }
 
 impl<T: Data> Widget<T> for Button<T> {
-    fn event(&mut self, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut T, env: &Env) {
+    fn event(
+        &mut self,
+        ctx: &mut druid::EventCtx,
+        event: &druid::Event,
+        data: &mut T,
+        env: &Env,
+    ) {
         match event {
             Event::MouseDown(_) => {
                 ctx.set_active(true);
@@ -256,7 +270,13 @@ impl<T: Data> Widget<T> for Button<T> {
         self.text.lifecycle(ctx, event, data, env)
     }
 
-    fn update(&mut self, ctx: &mut druid::UpdateCtx, old_data: &T, data: &T, env: &Env) {
+    fn update(
+        &mut self,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &T,
+        data: &T,
+        env: &Env,
+    ) {
         self.text.update(ctx, old_data, data, env);
     }
 
