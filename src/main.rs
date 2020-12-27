@@ -12,8 +12,8 @@ use druid::{
     text::TextLayout,
     widget::{
         Align, Button, Container, Controller, CrossAxisAlignment, FillStrat,
-        Flex, FlexParams, Label, LensWrap, List, ListIter, MainAxisAlignment,
-        Padding, Scroll, SizedBox, TextBox,
+        Flex, FlexParams, Image, Label, LensWrap, List, ListIter,
+        MainAxisAlignment, Padding, Scroll, SizedBox, TextBox,
     },
     AppLauncher, Color, Command, Data, Env, Event, FileDialogOptions, ImageBuf,
     Lens, LifeCycle, LocalizedString, MenuDesc, MenuItem, Selector, Target,
@@ -21,9 +21,7 @@ use druid::{
 };
 use image::{imageops::thumbnail, RgbImage};
 
-pub mod image_widget;
 pub mod widget;
-use crate::image_widget::*;
 use crate::widget::*;
 #[derive(Clone, Data, Lens)]
 pub struct AppState {
@@ -70,42 +68,19 @@ impl AppState {
     }
 }
 
-// #[derive(Clone, Data, Lens, Debug)]
 #[derive(Clone, Data, Lens, Debug)]
 pub struct Thumbnail {
     image: Arc<ImageBuf>,
 }
-
-impl ListIter<Thumbnail> for AppState {
-    fn for_each(&self, mut cb: impl FnMut(&Thumbnail, usize)) {
-        for (i, item) in self.thumbnails.iter().enumerate() {
-            cb(item, i);
-        }
-    }
-
-    fn for_each_mut(&mut self, mut cb: impl FnMut(&mut Thumbnail, usize)) {
-        // let thumbnails = Arc::make_mut(&mut self.thumbnails);
-        let mut thumbnails = self.thumbnails.as_ref().clone();
-        for (i, item) in thumbnails.iter_mut().enumerate() {
-            cb(item, i);
-        }
-        self.thumbnails = Arc::new(thumbnails);
-    }
-
-    fn data_len(&self) -> usize {
-        self.thumbnails.len()
-    }
-}
-
 struct ThumbnailController;
 
-impl Controller<Thumbnail, Image> for ThumbnailController {
+impl Controller<Arc<ImageBuf>, Image> for ThumbnailController {
     fn event(
         &mut self,
         child: &mut Image,
         ctx: &mut druid::EventCtx,
         event: &Event,
-        data: &mut Thumbnail,
+        data: &mut Arc<ImageBuf>,
         env: &Env,
     ) {
         child.event(ctx, event, data, env)
@@ -116,15 +91,12 @@ impl Controller<Thumbnail, Image> for ThumbnailController {
         child: &mut Image,
         ctx: &mut druid::LifeCycleCtx,
         event: &LifeCycle,
-        data: &Thumbnail,
+        data: &Arc<ImageBuf>,
         env: &Env,
     ) {
         match event {
             LifeCycle::WidgetAdded => {
-                dbg!("child image added");
-                dbg!(data);
-                child.set_image_data(data.image.as_ref().clone());
-                // child.image.set_image_data(data);
+                child.set_image_data(data.as_ref().clone());
                 ctx.request_layout();
                 ctx.request_paint();
             }
@@ -132,107 +104,7 @@ impl Controller<Thumbnail, Image> for ThumbnailController {
         }
         child.lifecycle(ctx, event, data, env)
     }
-
-    fn update(
-        &mut self,
-        child: &mut Image,
-        ctx: &mut druid::UpdateCtx,
-        old_data: &Thumbnail,
-        data: &Thumbnail,
-        env: &Env,
-    ) {
-        child.update(ctx, old_data, data, env)
-    }
 }
-// impl
-//     Controller<
-//         Thumbnail,
-//         LensWrap<
-//             Thumbnail,
-//             Arc<ImageBuf>,
-//             thumbnail_derived_lenses::image,
-//             Image,
-//         >,
-//     > for ThumbnailController
-// {
-//     fn event(
-//         &mut self,
-//         child: &mut LensWrap<
-//             Thumbnail,
-//             Arc<ImageBuf>,
-//             thumbnail_derived_lenses::image,
-//             Image,
-//         >,
-//         ctx: &mut druid::EventCtx,
-//         event: &druid::Event,
-//         data: &mut Thumbnail,
-//         env: &Env,
-//     ) {
-//         // dbg!("got this event happening");
-//         // match event {
-//         //     Event::Command(open) => {
-//         //         // let payload: &FileInfo = if let Some(selector) =
-//         //         //     open.get(Selector::new("druid-builtin.open-file-path"))
-//         //         // {
-//         //         //     selector
-//         //         // } else {
-//         //         //     return;
-//         //         // };
-//         //         dbg!("got open command");
-//         //         dbg!("got this event happening");
-//         //         ctx.request_layout();
-//         //         ctx.request_paint();
-//         //     }
-//         //     _ => {}
-//         // }
-//         child.event(ctx, event, data, env)
-//     }
-
-//     fn lifecycle(
-//         &mut self,
-//         child: &mut LensWrap<
-//             Thumbnail,
-//             Arc<ImageBuf>,
-//             thumbnail_derived_lenses::image,
-//             Image,
-//         >,
-//         ctx: &mut druid::LifeCycleCtx,
-//         event: &LifeCycle,
-//         data: &Thumbnail,
-//         env: &Env,
-//     ) {
-//         match event {
-//             LifeCycle::WidgetAdded => {
-//                 dbg!("child image added");
-//                 dbg!(data);
-//                 let inner = &mut child.inner;
-//                 inner.set_image_data(data.image.as_ref().clone());
-//                 // child.image.set_image_data(data);
-//                 ctx.request_layout();
-//                 ctx.request_paint();
-//             }
-//             _ => {}
-//         }
-//         child.lifecycle(ctx, event, data, env)
-//     }
-
-//     fn update(
-//         &mut self,
-//         child: &mut LensWrap<
-//             Thumbnail,
-//             Arc<ImageBuf>,
-//             thumbnail_derived_lenses::image,
-//             Image,
-//         >,
-//         ctx: &mut druid::UpdateCtx,
-//         old_data: &Thumbnail,
-//         data: &Thumbnail,
-//         env: &Env,
-//     ) {
-//         child.update(ctx, old_data, data, env)
-//     }
-//     // impl Controller<Thumbnail, Image> for ThumbnailController {
-// }
 
 const IMAGE_FOLDER: &str = "./images - Copy";
 
@@ -311,8 +183,6 @@ fn ui_builder() -> impl Widget<AppState> {
         } else {
             data.current_image -= 1;
         }
-        // dbg!(data.current_image);
-        // dbg!(&data.images[data.current_image]);
     })
     .fix_size(button_width, button_height);
 
@@ -332,8 +202,6 @@ fn ui_builder() -> impl Widget<AppState> {
         } else {
             data.current_image += 1;
         }
-        // dbg!(data.current_image);
-        // dbg!(&data.images[data.current_image]);
     })
     .fix_size(button_width, button_height);
 
@@ -359,22 +227,14 @@ fn ui_builder() -> impl Widget<AppState> {
         .cross_axis_alignment(CrossAxisAlignment::Center)
         .main_axis_alignment(MainAxisAlignment::SpaceBetween);
 
-    let film_strip_list =
-            // List::new(|| Image::new(ImageBuf::empty()).lens(Thumbnail::image))
-            List::new(|| {
-                Image::new(ImageBuf::empty())
-                    .controller(ThumbnailController) // curly brackets not needed
-                    .background(druid::Color::rgb8(70, 70, 70))
-                    .lens(Thumbnail::image)
-                // Image::new(ImageBuf::empty())
-                //     .lens(Thumbnail::image)
-                //     .controller(ThumbnailController{})
-                //     .background(druid::Color::rgb8(70, 70, 70))
-            })
-                .horizontal()
-                .with_spacing(10.0)
-                .lens(AppState::thumbnails)
-                .background(druid::Color::rgb8(70, 70, 70));
+    let film_strip_list = List::new(|| {
+        Image::new(ImageBuf::empty())
+            .controller(ThumbnailController {})
+            .lens(Thumbnail::image)
+    })
+    .horizontal()
+    .with_spacing(10.0)
+    .lens(AppState::thumbnails);
 
     let film_strip_view = Scroll::new(
         Flex::row()
@@ -382,8 +242,9 @@ fn ui_builder() -> impl Widget<AppState> {
             .with_child(film_strip_list)
             .fix_height(150.0),
     )
-    .horizontal();
-    // .background(Color::rgb8(0x99, 0x99, 0x99));
+    .horizontal()
+    .background(Color::rgb8(0xdd, 0xdd, 0xdd))
+    .padding(5.0);
     let layout = Flex::column()
         .must_fill_main_axis(true)
         .with_flex_child(image_view, FlexParams::new(1.0, None))

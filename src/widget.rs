@@ -7,13 +7,11 @@ use std::{
 use druid::{
     self,
     piet::{ImageFormat, InterpolationMode},
-    widget::{Label, LabelText},
+    widget::{Image, Label, LabelText},
     Affine, Color, Env, Event, FileInfo, ImageBuf, LifeCycle, RenderContext,
     Selector, Size,
 };
 
-// use druid::widget::Image;
-use crate::image_widget::Image;
 use druid::{Data, Lens, Widget, WidgetExt};
 use image::imageops::thumbnail;
 
