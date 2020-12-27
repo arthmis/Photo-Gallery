@@ -6,7 +6,7 @@ use std::{
 };
 
 use druid::{
-    commands,
+    commands, lens,
     piet::{ImageFormat, InterpolationMode},
     text::EditableText,
     text::TextLayout,
@@ -16,8 +16,8 @@ use druid::{
         MainAxisAlignment, Padding, Scroll, SizedBox, TextBox,
     },
     AppLauncher, Color, Command, Data, Env, Event, FileDialogOptions, ImageBuf,
-    Lens, LifeCycle, LocalizedString, MenuDesc, MenuItem, Selector, Target,
-    Widget, WidgetExt, WindowDesc,
+    Insets, Lens, LensExt, LifeCycle, LocalizedString, MenuDesc, MenuItem,
+    Selector, Target, Widget, WidgetExt, WindowDesc,
 };
 use image::{imageops::thumbnail, RgbImage};
 
@@ -60,6 +60,7 @@ impl AppState {
             // let image = Image::new(image)
             //     .interpolation_mode(InterpolationMode::Bilinear);
             new_images.push(Thumbnail {
+                index: new_images.len(),
                 image: Arc::new(image),
             });
             // new_images.push(Rc::new(image));
@@ -68,19 +69,40 @@ impl AppState {
     }
 }
 
+// impl ListIter<Thumbnail> for AppState {
+//     fn for_each(&self, mut cb: impl FnMut(&Thumbnail, usize)) {
+//         for (i, item) in self.thumbnails.iter().enumerate() {
+//             cb(item, i);
+//         }
+//     }
+
+//     fn for_each_mut(&mut self, mut cb: impl FnMut(&mut Thumbnail, usize)) {
+//         let mut thumbnails = self.thumbnails.as_ref().clone();
+//         for (i, item) in thumbnails.iter_mut().enumerate() {
+//             cb(item, i);
+//         }
+//         self.thumbnails = Arc::new(thumbnails);
+//     }
+
+//     fn data_len(&self) -> usize {
+//         self.thumbnails.len()
+//     }
+// }
+
 #[derive(Clone, Data, Lens, Debug)]
 pub struct Thumbnail {
+    index: usize,
     image: Arc<ImageBuf>,
 }
 struct ThumbnailController;
 
-impl Controller<Arc<ImageBuf>, Image> for ThumbnailController {
+impl Controller<Thumbnail, Image> for ThumbnailController {
     fn event(
         &mut self,
         child: &mut Image,
         ctx: &mut druid::EventCtx,
         event: &Event,
-        data: &mut Arc<ImageBuf>,
+        data: &mut Thumbnail,
         env: &Env,
     ) {
         child.event(ctx, event, data, env)
@@ -91,12 +113,12 @@ impl Controller<Arc<ImageBuf>, Image> for ThumbnailController {
         child: &mut Image,
         ctx: &mut druid::LifeCycleCtx,
         event: &LifeCycle,
-        data: &Arc<ImageBuf>,
+        data: &Thumbnail,
         env: &Env,
     ) {
         match event {
             LifeCycle::WidgetAdded => {
-                child.set_image_data(data.as_ref().clone());
+                child.set_image_data(data.image.as_ref().clone());
                 ctx.request_layout();
                 ctx.request_paint();
             }
@@ -218,7 +240,8 @@ fn ui_builder() -> impl Widget<AppState> {
         .fill_mode(FillStrat::Contain);
     let image = DisplayImage {
         image: Rc::new(image),
-    };
+    }
+    .padding(Insets::new(0.0, 5.0, 0.0, 5.0));
     let image_view = Flex::row()
         .must_fill_main_axis(true)
         .with_child(left_button)
@@ -230,11 +253,25 @@ fn ui_builder() -> impl Widget<AppState> {
     let film_strip_list = List::new(|| {
         Image::new(ImageBuf::empty())
             .controller(ThumbnailController {})
-            .lens(Thumbnail::image)
+            // .lens(Thumbnail::image)
+            .fix_size(150.0, 150.0)
+            .padding(15.0)
+            .background(Color::rgb8(0xdd, 0xdd, 0xdd))
+            .on_click(|event, data, env| {
+                dbg!("clicking on thumbnail");
+                dbg!(data);
+            })
     })
     .horizontal()
-    .with_spacing(10.0)
+    // .with_spacing(10.0)
     .lens(AppState::thumbnails);
+    // .lens(lens::Identity.map(
+    //     |state: &AppState| (state.current_image, state.thumbnails.clone()),
+    //     |state: &mut AppState, new_data: (usize, Arc<Vec<Thumbnail>>)| {
+    //         dbg!("hello");
+    //     },
+    // ));
+    // .lens(AppState::thumbnails.then(AppState::current_image));
 
     let film_strip_view = Scroll::new(
         Flex::row()
@@ -242,9 +279,9 @@ fn ui_builder() -> impl Widget<AppState> {
             .with_child(film_strip_list)
             .fix_height(150.0),
     )
-    .horizontal()
-    .background(Color::rgb8(0xdd, 0xdd, 0xdd))
-    .padding(5.0);
+    .horizontal();
+    // .background(Color::rgb8(0xdd, 0xdd, 0xdd));
+    // .padding(5.0);
     let layout = Flex::column()
         .must_fill_main_axis(true)
         .with_flex_child(image_view, FlexParams::new(1.0, None))
