@@ -333,7 +333,7 @@ checksum = "212d0f5754cb6769937f4501cc0e67f4f4483c8d2c3e1e922ee9edbe4ab4c7c0"
 [[package]]
 name = "druid"
 version = "0.6.0"
-source = "git+https://github.com/linebender/druid.git#6d9740cfd336d1ed9116eecfb1692baa85fea744"
+source = "git+https://github.com/linebender/druid.git#3637bf76be4df617cbb98244019368e22962aac5"
 dependencies = [
  "console_log",
  "druid-derive",
@@ -353,7 +353,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.3.1"
-source = "git+https://github.com/linebender/druid.git#6d9740cfd336d1ed9116eecfb1692baa85fea744"
+source = "git+https://github.com/linebender/druid.git#3637bf76be4df617cbb98244019368e22962aac5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -363,7 +363,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.6.0"
-source = "git+https://github.com/linebender/druid.git#6d9740cfd336d1ed9116eecfb1692baa85fea744"
+source = "git+https://github.com/linebender/druid.git#3637bf76be4df617cbb98244019368e22962aac5"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "image-viewer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "druid",
  "image",

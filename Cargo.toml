@@ -1,6 +1,6 @@
 [package]
 name = "image-viewer"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["lazypassion <25536767+lazypassion@users.noreply.github.com>"]
 edition = "2018"
 
