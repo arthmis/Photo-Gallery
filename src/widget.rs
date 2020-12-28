@@ -15,7 +15,7 @@ use druid::{
 use druid::{Data, Lens, Widget, WidgetExt};
 use image::imageops::thumbnail;
 
-use crate::AppState;
+use crate::{AppState, Thumbnail};
 #[derive(Clone, Data, Lens)]
 pub struct DisplayImage {
     pub image: Rc<Image>,
@@ -29,23 +29,22 @@ impl Widget<AppState> for DisplayImage {
         data: &mut AppState,
         env: &Env,
     ) {
+        let open_selector: Selector<AppState> =
+            Selector::new("druid-builtin.open-file-path");
+        let select_image_selector: Selector<usize> =
+            Selector::new("select_thumbnail");
         match event {
-            Event::Command(open) => {
+            Event::Command(open) if open.is(open_selector) => {
                 dbg!("got open command in display image");
                 // I don't know if this is right
                 // if I don't return here, the application crashes everytime
                 // I close it because of unwrap() and can't find selector
                 // is the command being sent periodically?
-                let payload: &FileInfo = if let Some(selector) =
-                    open.get(Selector::new("druid-builtin.open-file-path"))
-                {
-                    selector
-                } else {
-                    return;
-                };
+                let payload: &FileInfo = open.get_unchecked(Selector::new(
+                    "druid-builtin.open-file-path",
+                ));
 
                 let path = payload.path();
-                // dbg!(path);
                 let mut paths: Vec<PathBuf> = std::fs::read_dir(path)
                     .unwrap()
                     .map(|path| path.unwrap().path())
@@ -53,8 +52,16 @@ impl Widget<AppState> for DisplayImage {
 
                 data.images = Arc::new(paths);
                 data.current_image = 0;
-                // dbg!(&data.images, &data.current_image);
                 data.create_thumbnails();
+
+                ctx.request_layout();
+                ctx.request_paint();
+            }
+            Event::Command(select_image)
+                if select_image.is(select_image_selector) =>
+            {
+                let index = select_image.get_unchecked(select_image_selector);
+                data.current_image = *index;
 
                 ctx.request_layout();
                 ctx.request_paint();

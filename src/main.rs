@@ -23,7 +23,7 @@ use image::{imageops::thumbnail, RgbImage};
 
 pub mod widget;
 use crate::widget::*;
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Lens, Debug)]
 pub struct AppState {
     images: Arc<Vec<PathBuf>>,
     current_image: usize,
@@ -258,8 +258,9 @@ fn ui_builder() -> impl Widget<AppState> {
             .padding(15.0)
             .background(Color::rgb8(0xdd, 0xdd, 0xdd))
             .on_click(|event, data, env| {
-                dbg!("clicking on thumbnail");
-                dbg!(data);
+                let select_image =
+                    Selector::new("select_thumbnail").with(data.index);
+                event.submit_command(select_image);
             })
     })
     .horizontal()
