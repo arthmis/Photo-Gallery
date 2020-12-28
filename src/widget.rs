@@ -132,83 +132,6 @@ impl Widget<AppState> for DisplayImage {
     }
 }
 
-// #[derive(Clone, Data, Lens)]
-// struct FilmStrip {
-//     thumbnails: Arc<Vec<Image>>,
-// }
-
-// impl Widget<AppState> for FilmStrip {
-//     fn event(&mut self, ctx: &mut druid::EventCtx, event: &Event, data: &mut AppState, env: &Env) {}
-
-//     fn lifecycle(
-//         &mut self,
-//         ctx: &mut druid::LifeCycleCtx,
-//         event: &LifeCycle,
-//         data: &AppState,
-//         env: &Env,
-//     ) {
-//         // todo!()
-//     }
-
-//     fn update(
-//         &mut self,
-//         ctx: &mut druid::UpdateCtx,
-//         old_data: &AppState,
-//         data: &AppState,
-//         env: &Env,
-//     ) {
-//         if data.images.is_empty() {
-//             return;
-//         }
-
-//         if data.images != old_data.images {
-//             let mut new_images = Vec::with_capacity(data.images.len());
-//             for i in 0..data.images.len() {
-//                 let image = image::io::Reader::open(&data.images[data.current_image])
-//                     .unwrap()
-//                     .decode()
-//                     .unwrap()
-//                     .into_rgb8();
-//                 let (width, height) = image.dimensions();
-//                 dbg!(width, height);
-//                 let (new_width, new_height) = {
-//                     let max_height = 150.0;
-//                     let scale = max_height / image.height() as f64;
-//                     let scaled_width = image.width() as f64 * scale;
-//                     let scaled_height = image.height() as f64 * scale;
-//                     (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
-//                 };
-//                 let image = thumbnail(&image, new_width, new_height);
-//                 let (width, height) = image.dimensions();
-//                 let image = ImageBuf::from_raw(
-//                     image.into_raw(),
-//                     ImageFormat::Rgb,
-//                     width as usize,
-//                     height as usize,
-//                 );
-//                 dbg!(width, height);
-//                 let image = Image::new(image).interpolation_mode(InterpolationMode::Bilinear);
-//                 new_images.push(image);
-//             }
-//             self.thumbnails = Arc::new(new_images);
-//         }
-//     }
-
-//     fn layout(
-//         &mut self,
-//         ctx: &mut druid::LayoutCtx,
-//         bc: &druid::BoxConstraints,
-//         data: &AppState,
-//         env: &Env,
-//     ) -> Size {
-//         todo!()
-//     }
-
-//     fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &AppState, env: &Env) {
-//         todo!()
-//     }
-// }
-
 pub struct Button<T: Data> {
     text: Label<T>,
     color: druid::Color,
@@ -326,6 +249,7 @@ impl<T: Data> Widget<T> for Button<T> {
             (self.background_color.clone(), self.background_color.clone())
         };
 
+        // paint border
         ctx.stroke(rect, &border_color, stroke_width);
         ctx.fill(rect, &bg_color);
 

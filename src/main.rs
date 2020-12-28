@@ -13,11 +13,11 @@ use druid::{
     widget::{
         Align, Button, Container, Controller, CrossAxisAlignment, FillStrat,
         Flex, FlexParams, Image, Label, LensWrap, List, ListIter,
-        MainAxisAlignment, Padding, Scroll, SizedBox, TextBox,
+        MainAxisAlignment, Padding, Painter, Scroll, SizedBox, TextBox,
     },
     AppLauncher, Color, Command, Data, Env, Event, FileDialogOptions, ImageBuf,
     Insets, Lens, LensExt, LifeCycle, LocalizedString, MenuDesc, MenuItem,
-    Selector, Target, Widget, WidgetExt, WindowDesc,
+    RenderContext, Selector, Target, Widget, WidgetExt, WindowDesc,
 };
 use image::{imageops::thumbnail, RgbImage};
 
@@ -56,41 +56,43 @@ impl AppState {
                 width as usize,
                 height as usize,
             );
-            // dbg!(width, height);
-            // let image = Image::new(image)
-            //     .interpolation_mode(InterpolationMode::Bilinear);
             new_images.push(Thumbnail {
+                is_selected: false,
                 index: new_images.len(),
                 image: Arc::new(image),
             });
-            // new_images.push(Rc::new(image));
         }
         self.thumbnails = Arc::new(new_images);
     }
 }
+impl ListIter<Thumbnail> for AppState {
+    fn for_each(&self, mut cb: impl FnMut(&Thumbnail, usize)) {
+        for (i, item) in self.thumbnails.iter().enumerate() {
+            cb(item, i);
+        }
+    }
 
-// impl ListIter<Thumbnail> for AppState {
-//     fn for_each(&self, mut cb: impl FnMut(&Thumbnail, usize)) {
-//         for (i, item) in self.thumbnails.iter().enumerate() {
-//             cb(item, i);
-//         }
-//     }
+    fn for_each_mut(&mut self, mut cb: impl FnMut(&mut Thumbnail, usize)) {
+        let mut thumbnails = self.thumbnails.as_ref().clone();
+        for (i, item) in thumbnails.iter_mut().enumerate() {
+            if self.current_image == i {
+                item.is_selected = true;
+            } else {
+                item.is_selected = false;
+            }
+            cb(item, i);
+        }
+        self.thumbnails = Arc::new(thumbnails);
+    }
 
-//     fn for_each_mut(&mut self, mut cb: impl FnMut(&mut Thumbnail, usize)) {
-//         let mut thumbnails = self.thumbnails.as_ref().clone();
-//         for (i, item) in thumbnails.iter_mut().enumerate() {
-//             cb(item, i);
-//         }
-//         self.thumbnails = Arc::new(thumbnails);
-//     }
-
-//     fn data_len(&self) -> usize {
-//         self.thumbnails.len()
-//     }
-// }
+    fn data_len(&self) -> usize {
+        self.thumbnails.len()
+    }
+}
 
 #[derive(Clone, Data, Lens, Debug)]
 pub struct Thumbnail {
+    is_selected: bool,
     index: usize,
     image: Arc<ImageBuf>,
 }
@@ -253,35 +255,45 @@ fn ui_builder() -> impl Widget<AppState> {
     let film_strip_list = List::new(|| {
         Image::new(ImageBuf::empty())
             .controller(ThumbnailController {})
-            // .lens(Thumbnail::image)
             .fix_size(150.0, 150.0)
             .padding(15.0)
-            .background(Color::rgb8(0xdd, 0xdd, 0xdd))
+            .background(Painter::new(|ctx, data: &Thumbnail, env| {
+                let is_hot = ctx.is_hot();
+                let is_active = ctx.is_active();
+                let is_selected = data.is_selected;
+
+                Color::rgb8(0x00, 0x75, 0xfc);
+                let background_color = if is_active {
+                    Color::rgb8(0x00, 0x62, 0xd3)
+                } else if is_hot {
+                    Color::rgb8(0x49, 0x9c, 0xfc)
+                } else if is_selected {
+                    Color::rgb8(0x00, 0x75, 0xfc)
+                } else {
+                    Color::rgb8(0xee, 0xee, 0xee)
+                };
+
+                let rect = ctx.size().to_rect();
+                ctx.stroke(rect, &background_color, 0.0);
+                ctx.fill(rect, &background_color);
+            }))
+            // .border(Color::rgb8(255, 255, 255), 1.0)
             .on_click(|event, data, env| {
                 let select_image =
                     Selector::new("select_thumbnail").with(data.index);
                 event.submit_command(select_image);
             })
     })
-    .horizontal()
-    // .with_spacing(10.0)
-    .lens(AppState::thumbnails);
-    // .lens(lens::Identity.map(
-    //     |state: &AppState| (state.current_image, state.thumbnails.clone()),
-    //     |state: &mut AppState, new_data: (usize, Arc<Vec<Thumbnail>>)| {
-    //         dbg!("hello");
-    //     },
-    // ));
-    // .lens(AppState::thumbnails.then(AppState::current_image));
+    .horizontal();
 
     let film_strip_view = Scroll::new(
         Flex::row()
             .must_fill_main_axis(true)
             .with_child(film_strip_list)
-            .fix_height(150.0),
+            .fix_height(150.0)
+            .background(Color::rgb8(0xee, 0xee, 0xee)),
     )
     .horizontal();
-    // .background(Color::rgb8(0xdd, 0xdd, 0xdd));
     // .padding(5.0);
     let layout = Flex::column()
         .must_fill_main_axis(true)
