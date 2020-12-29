@@ -156,51 +156,6 @@ impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
     }
 }
 
-// pub struct ListController;
-
-// impl Controller<AppState, List<Thumbnail>> for ListController {
-//     fn event(
-//         &mut self,
-//         child: &mut List<Thumbnail>,
-//         ctx: &mut druid::EventCtx,
-//         event: &Event,
-//         data: &mut AppState,
-//         env: &Env,
-//     ) {
-//         // dbg!("received list event");
-//         child.event(ctx, event, data, env)
-//     }
-
-//     fn lifecycle(
-//         &mut self,
-//         child: &mut List<Thumbnail>,
-//         ctx: &mut druid::LifeCycleCtx,
-//         event: &LifeCycle,
-//         data: &AppState,
-//         env: &Env,
-//     ) {
-//         // dbg!("received list lifecycle");
-//         child.lifecycle(ctx, event, data, env)
-//     }
-
-//     fn update(
-//         &mut self,
-//         child: &mut List<Thumbnail>,
-//         ctx: &mut druid::UpdateCtx,
-//         old_data: &AppState,
-//         data: &AppState,
-//         env: &Env,
-//     ) {
-//         dbg!("received list update");
-//         dbg!(old_data.current_image, data.current_image);
-//         if old_data.current_image != data.current_image {
-//             ctx.request_layout();
-//             ctx.request_paint();
-//         }
-//         child.update(ctx, old_data, data, env)
-//     }
-// }
-
 const IMAGE_FOLDER: &str = "./images - Copy";
 
 fn main() {
@@ -363,50 +318,11 @@ fn ui_builder() -> impl Widget<AppState> {
             )
     })
     .horizontal();
-    // .lens(AppState::thumbnails);
-    // .lens(
-    //     AppStateLensBuilder::new()
-    //         // .images(AppState::images)
-    //         .current_image(AppState::current_image)
-    //         .thumbnails(AppState::thumbnails)
-    //         .build(),
-    // );
 
-    // let lens: AppStateLens<
-    //     app_state_derived_lenses::images,
-    //     app_state_derived_lenses::current_image,
-    //     app_state_derived_lenses::thumbnails,
-    // > = AppStateLensBuilder::new()
-    //     .images(AppState::images)
-    //     .current_image(AppState::current_image)
-    //     .thumbnails(AppState::thumbnails)
-    //     .build();
-    // .lens(
-    //     AppStateLensBuilder::new()
-    //         .thumbnails(AppState::thumbnails)
-    //         .images(AppState::images)
-    //         .build(),
-    // );
-    // .lens(lens::Identity.map(
-    //     // Expose shared data with children data
-    //     |d: &AppState| (d.clone(), d.current_image),
-    //     |d: &mut AppState, (new_d, _): (AppState, usize)| {
-    //         // If shared data was changed reflect the changes in our AppData
-    //         *d = new_d;
-    //     },
-    // ));
-    // .controller(ListController {});
-
-    let film_strip_view = Scroll::new(
-        // Flex::row()
-        // .must_fill_main_axis(true)
-        // .with_child(film_strip_list)
-        film_strip_list,
-    )
-    .horizontal()
-    .fix_height(150.0)
-    .background(Color::rgb8(0xee, 0xee, 0xee));
-    // .padding(5.0);
+    let film_strip_view = Scroll::new(film_strip_list)
+        .horizontal()
+        .fix_height(150.0)
+        .background(Color::rgb8(0xee, 0xee, 0xee));
     let layout = Flex::column()
         .must_fill_main_axis(true)
         .with_flex_child(image_view, FlexParams::new(1.0, None))
