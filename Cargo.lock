@@ -361,6 +361,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "druid-lens-compose"
+version = "0.1.1"
+source = "git+https://github.com/derekdreery/druid-lens-compose.git#7f5d524366b771b26df87909a754fe8e2e8eccf1"
+dependencies = [
+ "itertools",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "druid-shell"
 version = "0.6.0"
 source = "git+https://github.com/linebender/druid.git#3637bf76be4df617cbb98244019368e22962aac5"
@@ -823,6 +834,7 @@ name = "image-viewer"
 version = "0.2.0"
 dependencies = [
  "druid",
+ "druid-lens-compose",
  "image",
 ]
 

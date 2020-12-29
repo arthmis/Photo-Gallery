@@ -15,15 +15,18 @@ use druid::{
         Flex, FlexParams, Image, Label, LensWrap, List, ListIter,
         MainAxisAlignment, Padding, Painter, Scroll, SizedBox, TextBox,
     },
-    AppLauncher, Color, Command, Data, Env, Event, FileDialogOptions, ImageBuf,
-    Insets, Lens, LensExt, LifeCycle, LocalizedString, MenuDesc, MenuItem,
-    RenderContext, Selector, Target, Widget, WidgetExt, WindowDesc,
+    AppDelegate, AppLauncher, Color, Command, Data, Env, Event, EventCtx,
+    FileDialogOptions, FileInfo, ImageBuf, Insets, Lens, LensExt, LifeCycle,
+    LocalizedString, MenuDesc, MenuItem, RenderContext, Selector, Target,
+    Widget, WidgetExt, WindowDesc,
 };
 use image::{imageops::thumbnail, RgbImage};
 
 pub mod widget;
 use crate::widget::*;
-#[derive(Clone, Data, Lens, Debug)]
+use druid_lens_compose::ComposeLens;
+
+#[derive(Clone, Data, Lens, Debug, ComposeLens)]
 pub struct AppState {
     images: Arc<Vec<PathBuf>>,
     current_image: usize,
@@ -58,6 +61,7 @@ impl AppState {
             );
             new_images.push(Thumbnail {
                 is_selected: false,
+                current_image: 0,
                 index: new_images.len(),
                 image: Arc::new(image),
             });
@@ -65,24 +69,45 @@ impl AppState {
         self.thumbnails = Arc::new(new_images);
     }
 }
-impl ListIter<Thumbnail> for AppState {
-    fn for_each(&self, mut cb: impl FnMut(&Thumbnail, usize)) {
+// impl<S: Data, T: Data> ListIter<(S, &T)> for (S, Arc<Vec<T>>) {}
+impl ListIter<(usize, Thumbnail)> for AppState {
+    fn for_each(&self, mut cb: impl FnMut(&(usize, Thumbnail), usize)) {
         for (i, item) in self.thumbnails.iter().enumerate() {
-            cb(item, i);
+            // let mut owned_item = item.to_owned();
+            // if self.current_image == i {
+            //     owned_item.is_selected = true;
+            // } else {
+            //     owned_item.is_selected = false;
+            // }
+            // owned_item.current_image = self.current_image;
+            cb(&(self.current_image, item.clone()), i);
+            // cb(item, i);
         }
     }
 
-    fn for_each_mut(&mut self, mut cb: impl FnMut(&mut Thumbnail, usize)) {
-        let mut thumbnails = self.thumbnails.as_ref().clone();
-        for (i, item) in thumbnails.iter_mut().enumerate() {
-            if self.current_image == i {
-                item.is_selected = true;
-            } else {
-                item.is_selected = false;
-            }
-            cb(item, i);
+    fn for_each_mut(
+        &mut self,
+        mut cb: impl FnMut(&mut (usize, Thumbnail), usize),
+    ) {
+        // let mut new_data = Vec::with_capacity(self.thumbnails.len());
+        // let mut any_changed = false;
+        for (i, item) in self.thumbnails.iter().enumerate() {
+            let mut owned_item = item.to_owned();
+            // if self.current_image == i {
+            //     owned_item.is_selected = true;
+            // } else {
+            //     owned_item.is_selected = false;
+            // }
+            // owned_item.current_image = self.current_image;
+            cb(&mut (self.current_image, owned_item), i);
+            // if !any_changed && !item.same(&owned_item) {
+            //     any_changed = true;
+            // }
+            // new_data.push(owned_item);
         }
-        self.thumbnails = Arc::new(thumbnails);
+        // if any_changed {
+        //     self.thumbnails = Arc::new(new_data);
+        // }
     }
 
     fn data_len(&self) -> usize {
@@ -90,21 +115,22 @@ impl ListIter<Thumbnail> for AppState {
     }
 }
 
-#[derive(Clone, Data, Lens, Debug)]
+#[derive(Clone, Data, Lens, Debug, ComposeLens)]
 pub struct Thumbnail {
     is_selected: bool,
+    current_image: usize,
     index: usize,
     image: Arc<ImageBuf>,
 }
 struct ThumbnailController;
 
-impl Controller<Thumbnail, Image> for ThumbnailController {
+impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
     fn event(
         &mut self,
         child: &mut Image,
         ctx: &mut druid::EventCtx,
         event: &Event,
-        data: &mut Thumbnail,
+        data: &mut (usize, Thumbnail),
         env: &Env,
     ) {
         child.event(ctx, event, data, env)
@@ -115,12 +141,12 @@ impl Controller<Thumbnail, Image> for ThumbnailController {
         child: &mut Image,
         ctx: &mut druid::LifeCycleCtx,
         event: &LifeCycle,
-        data: &Thumbnail,
+        data: &(usize, Thumbnail),
         env: &Env,
     ) {
         match event {
             LifeCycle::WidgetAdded => {
-                child.set_image_data(data.image.as_ref().clone());
+                child.set_image_data(data.1.image.as_ref().clone());
                 ctx.request_layout();
                 ctx.request_paint();
             }
@@ -257,44 +283,46 @@ fn ui_builder() -> impl Widget<AppState> {
             .controller(ThumbnailController {})
             .fix_size(150.0, 150.0)
             .padding(15.0)
-            .background(Painter::new(|ctx, data: &Thumbnail, env| {
-                let is_hot = ctx.is_hot();
-                let is_active = ctx.is_active();
-                let is_selected = data.is_selected;
+            .background(Painter::new(
+                |ctx, (current_image, data): &(usize, Thumbnail), env| {
+                    let is_hot = ctx.is_hot();
+                    let is_active = ctx.is_active();
+                    // let is_selected = data.is_selected;
+                    let is_selected = *current_image == data.index;
 
-                Color::rgb8(0x00, 0x75, 0xfc);
-                let background_color = if is_active {
-                    Color::rgb8(0x00, 0x62, 0xd3)
-                } else if is_hot {
-                    Color::rgb8(0x49, 0x9c, 0xfc)
-                } else if is_selected {
-                    Color::rgb8(0x00, 0x75, 0xfc)
-                } else {
-                    Color::rgb8(0xee, 0xee, 0xee)
-                };
+                    // Color::rgb8(0x00, 0x75, 0xfc);
+                    let background_color = if is_active {
+                        Color::rgb8(0x87, 0x87, 0x87)
+                    } else if is_hot {
+                        Color::rgb8(0xc4, 0xc4, 0xc4)
+                    } else if is_selected {
+                        Color::rgb8(0x9e, 0x9e, 0x9e)
+                    } else {
+                        Color::rgb8(0xee, 0xee, 0xee)
+                    };
 
-                let rect = ctx.size().to_rect();
-                ctx.stroke(rect, &background_color, 0.0);
-                ctx.fill(rect, &background_color);
-            }))
+                    let rect = ctx.size().to_rect();
+                    ctx.stroke(rect, &background_color, 0.0);
+                    ctx.fill(rect, &background_color);
+                },
+            ))
             // .border(Color::rgb8(255, 255, 255), 1.0)
-            .on_click(|event, data, env| {
-                let select_image =
-                    Selector::new("select_thumbnail").with(data.index);
-                event.submit_command(select_image);
-            })
+            .on_click(
+                |event: &mut EventCtx,
+                 (current_image, data): &mut (usize, Thumbnail),
+                 env| {
+                    let select_image =
+                        Selector::new("select_thumbnail").with(data.index);
+                    event.submit_command(select_image);
+                },
+            )
     })
     .horizontal();
 
-    let film_strip_view = Scroll::new(
-        Flex::row()
-            .must_fill_main_axis(true)
-            .with_child(film_strip_list)
-            .fix_height(150.0)
-            .background(Color::rgb8(0xee, 0xee, 0xee)),
-    )
-    .horizontal();
-    // .padding(5.0);
+    let film_strip_view = Scroll::new(film_strip_list)
+        .horizontal()
+        .fix_height(150.0)
+        .background(Color::rgb8(0xee, 0xee, 0xee));
     let layout = Flex::column()
         .must_fill_main_axis(true)
         .with_flex_child(image_view, FlexParams::new(1.0, None))
