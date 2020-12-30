@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 druid = { git = "https://github.com/linebender/druid.git" }
 image = "0.23"
-druid-lens-compose = { git = "https://github.com/derekdreery/druid-lens-compose.git"}
 
 [profile.dev]
 opt-level = 1

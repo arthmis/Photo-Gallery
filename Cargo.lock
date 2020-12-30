@@ -333,7 +333,7 @@ checksum = "212d0f5754cb6769937f4501cc0e67f4f4483c8d2c3e1e922ee9edbe4ab4c7c0"
 [[package]]
 name = "druid"
 version = "0.6.0"
-source = "git+https://github.com/linebender/druid.git#3637bf76be4df617cbb98244019368e22962aac5"
+source = "git+https://github.com/linebender/druid.git#b217dd809ae85058ace2c1c0e9d16c944f3fb70b"
 dependencies = [
  "console_log",
  "druid-derive",
@@ -353,19 +353,8 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.3.1"
-source = "git+https://github.com/linebender/druid.git#3637bf76be4df617cbb98244019368e22962aac5"
+source = "git+https://github.com/linebender/druid.git#b217dd809ae85058ace2c1c0e9d16c944f3fb70b"
 dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "druid-lens-compose"
-version = "0.1.1"
-source = "git+https://github.com/derekdreery/druid-lens-compose.git#7f5d524366b771b26df87909a754fe8e2e8eccf1"
-dependencies = [
- "itertools",
  "proc-macro2",
  "quote",
  "syn",
@@ -374,7 +363,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.6.0"
-source = "git+https://github.com/linebender/druid.git#3637bf76be4df617cbb98244019368e22962aac5"
+source = "git+https://github.com/linebender/druid.git#b217dd809ae85058ace2c1c0e9d16c944f3fb70b"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -834,7 +823,6 @@ name = "image-viewer"
 version = "0.2.0"
 dependencies = [
  "druid",
- "druid-lens-compose",
  "image",
 ]
 
@@ -1109,9 +1097,9 @@ dependencies = [
 
 [[package]]
 name = "piet-common"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d63a6e19d7609b4588474e7a2fed3f1f65a4cb2dc2c1e4faf612a1f6b6a02d5c"
+checksum = "3f2447b33c953eb9a9603417bb7d5836402c55766b35d5cc1b4ee5cb9f613f97"
 dependencies = [
  "cairo-rs",
  "cairo-sys-rs",
@@ -1156,9 +1144,9 @@ dependencies = [
 
 [[package]]
 name = "piet-web"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e3817e728530c6e65419d5db55379536581169e8716efa05a73fa19101997c5"
+checksum = "051dd0e8856c9837af0204f72b11636c8afba271a458eb877c887580208fa0ab"
 dependencies = [
  "js-sys",
  "piet",

@@ -1,4 +1,9 @@
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::SyncSender;
+use std::thread;
+use std::{fmt::Display, sync::mpsc::sync_channel};
 use std::{
+    fs::read,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -8,17 +13,115 @@ use druid::{
     self,
     piet::{ImageFormat, InterpolationMode},
     widget::{Image, Label, LabelText},
-    Affine, Color, Env, Event, FileInfo, ImageBuf, LifeCycle, RenderContext,
-    Selector, Size,
+    Affine, Color, Env, Event, ExtEventSink, FileInfo, ImageBuf, LifeCycle,
+    RenderContext, Selector, Size, Target, WidgetId,
 };
 
 use druid::{Data, Lens, Widget, WidgetExt};
-use image::imageops::thumbnail;
+use image::{imageops::thumbnail, RgbImage};
 
 use crate::{AppState, Thumbnail};
-#[derive(Clone, Data, Lens)]
+
+pub const OPEN_SELECTOR: Selector<AppState> =
+    Selector::new("druid-builtin.open-file-path");
+pub const SELECT_IMAGE_SELECTOR: Selector<usize> =
+    Selector::new("select_thumbnail");
+pub const FINISHED_READING_FOLDER: Selector<(
+    Arc<Vec<PathBuf>>,
+    Arc<Vec<Thumbnail>>,
+)> = Selector::new("finish_reading_folder");
+pub const FINISHED_READING_IMAGE: Selector<()> =
+    Selector::new("finished_reading_image");
+
 pub struct DisplayImage {
-    pub image: Rc<Image>,
+    pub image: Arc<Image>,
+    sender: SyncSender<RgbImage>,
+    receiver: Receiver<RgbImage>,
+}
+
+impl DisplayImage {
+    pub fn new(image: Image) -> Self {
+        let image = Arc::new(image);
+        let (sender, receiver) = sync_channel(3);
+
+        DisplayImage {
+            image,
+            sender,
+            receiver,
+        }
+    }
+}
+
+impl DisplayImage {
+    fn read_image(
+        &self,
+        sink: ExtEventSink,
+        path: PathBuf,
+        widget_id: WidgetId,
+    ) {
+        let sender = self.sender.clone();
+        std::thread::spawn(move || {
+            let image = image::io::Reader::open(path)
+                .unwrap()
+                .decode()
+                .unwrap()
+                .into_rgb8();
+            sender.send(image);
+            sink.submit_command(FINISHED_READING_IMAGE, (), widget_id)
+                .unwrap();
+        });
+    }
+}
+
+pub fn create_thumbnails(paths: Vec<PathBuf>) -> Arc<Vec<Thumbnail>> {
+    let mut new_images = Vec::new();
+    for path in paths.iter() {
+        let image = image::io::Reader::open(path)
+            .unwrap()
+            .decode()
+            .unwrap()
+            .into_rgb8();
+        let (width, height) = image.dimensions();
+        // dbg!(width, height);
+        let (new_width, new_height) = {
+            let max_height = 150.0;
+            let scale = max_height / image.height() as f64;
+            let scaled_width = image.width() as f64 * scale;
+            let scaled_height = image.height() as f64 * scale;
+            (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
+        };
+        let image = thumbnail(&image, new_width, new_height);
+        let (width, height) = image.dimensions();
+        let image = ImageBuf::from_raw(
+            image.into_raw(),
+            ImageFormat::Rgb,
+            width as usize,
+            height as usize,
+        );
+        new_images.push(Thumbnail {
+            index: new_images.len(),
+            image: Arc::new(image),
+        });
+    }
+    Arc::new(new_images)
+}
+
+pub fn read_images(sink: ExtEventSink, path: PathBuf) {
+    std::thread::spawn(move || {
+        let mut paths: Vec<PathBuf> = std::fs::read_dir(path)
+            .unwrap()
+            .map(|path| path.unwrap().path())
+            .collect();
+
+        let thumbnails = create_thumbnails(paths.clone());
+        sink.submit_command(
+            FINISHED_READING_FOLDER,
+            (Arc::new(paths), thumbnails),
+            // paths,
+            Target::Auto,
+        )
+        .unwrap();
+    });
 }
 
 impl Widget<AppState> for DisplayImage {
@@ -29,40 +132,19 @@ impl Widget<AppState> for DisplayImage {
         data: &mut AppState,
         env: &Env,
     ) {
-        let open_selector: Selector<AppState> =
-            Selector::new("druid-builtin.open-file-path");
-        let select_image_selector: Selector<usize> =
-            Selector::new("select_thumbnail");
         match event {
-            Event::Command(open) if open.is(open_selector) => {
-                dbg!("got open command in display image");
-                // I don't know if this is right
-                // if I don't return here, the application crashes everytime
-                // I close it because of unwrap() and can't find selector
-                // is the command being sent periodically?
-                let payload: &FileInfo = open.get_unchecked(Selector::new(
-                    "druid-builtin.open-file-path",
-                ));
-
-                let path = payload.path();
-                let mut paths: Vec<PathBuf> = std::fs::read_dir(path)
-                    .unwrap()
-                    .map(|path| path.unwrap().path())
-                    .collect();
-
-                data.images = Arc::new(paths);
-                data.current_image = 0;
-                data.create_thumbnails();
-
-                ctx.request_layout();
-                ctx.request_paint();
-            }
-            Event::Command(select_image)
-                if select_image.is(select_image_selector) =>
+            Event::Command(image_selector)
+                if image_selector.is(FINISHED_READING_IMAGE) =>
             {
-                let index = select_image.get_unchecked(select_image_selector);
-                data.current_image = *index;
-
+                let image = self.receiver.recv().unwrap();
+                let (width, height) = image.dimensions();
+                let image = ImageBuf::from_raw(
+                    image.into_raw(),
+                    ImageFormat::Rgb,
+                    width as usize,
+                    height as usize,
+                );
+                self.image = Arc::new(Image::new(image));
                 ctx.request_layout();
                 ctx.request_paint();
             }
@@ -77,7 +159,6 @@ impl Widget<AppState> for DisplayImage {
         data: &AppState,
         env: &Env,
     ) {
-        // todo!()
     }
 
     fn update(
@@ -90,26 +171,31 @@ impl Widget<AppState> for DisplayImage {
         if data.images.is_empty() {
             return;
         }
-        if data.current_image != old_data.current_image
+        if data.current_image_idx != old_data.current_image_idx
             || data.images != old_data.images
         {
-            let image =
-                image::io::Reader::open(&data.images[data.current_image])
-                    .unwrap()
-                    .decode()
-                    .unwrap()
-                    .into_rgb8();
-            let (width, height) = image.dimensions();
-            let image = ImageBuf::from_raw(
-                image.into_raw(),
-                ImageFormat::Rgb,
-                width as usize,
-                height as usize,
-            );
-            // dbg!(width, height);
-            let image = Image::new(image)
-                .interpolation_mode(InterpolationMode::Bilinear);
-            self.image = Rc::new(image);
+            // let image =
+            //     image::io::Reader::open(&data.images[data.current_image_idx])
+            //         .unwrap()
+            //         .decode()
+            //         .unwrap()
+            //         .into_rgb8();
+            // let (width, height) = image.dimensions();
+            // let image = ImageBuf::from_raw(
+            //     image.into_raw(),
+            //     ImageFormat::Rgb,
+            //     width as usize,
+            //     height as usize,
+            // );
+            // let image = Image::new(image)
+            //     .interpolation_mode(InterpolationMode::Bilinear);
+            // self.image = Arc::new(image);
+            let path = data.images[data.current_image_idx].clone();
+            let sink = ctx.get_external_handle();
+            // only need to send this payload back to itself
+            // after it finishes reading the image on a separate thread
+            // only DisplayImage needs to see this payload
+            self.read_image(sink, path, ctx.widget_id());
             ctx.request_layout();
             ctx.request_paint();
         }
@@ -122,13 +208,13 @@ impl Widget<AppState> for DisplayImage {
         data: &AppState,
         env: &Env,
     ) -> druid::Size {
-        Rc::get_mut(&mut self.image)
+        Arc::get_mut(&mut self.image)
             .unwrap()
             .layout(ctx, bc, data, env)
     }
 
     fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &AppState, env: &Env) {
-        Rc::get_mut(&mut self.image).unwrap().paint(ctx, data, env);
+        Arc::get_mut(&mut self.image).unwrap().paint(ctx, data, env);
     }
 }
 
