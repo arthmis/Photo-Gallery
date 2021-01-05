@@ -1,23 +1,17 @@
+use std::sync::mpsc::sync_channel;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::SyncSender;
-use std::thread;
-use std::{fmt::Display, sync::mpsc::sync_channel};
-use std::{
-    fs::read,
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{path::PathBuf, sync::Arc};
 
 use druid::{
     self,
-    piet::{ImageFormat, InterpolationMode},
+    piet::ImageFormat,
     widget::{Image, Label, LabelText},
-    Affine, Color, Env, Event, ExtEventSink, FileInfo, ImageBuf, LifeCycle,
+    Affine, Color, Env, Event, ExtEventSink, ImageBuf, LifeCycle,
     RenderContext, Selector, Size, Target, WidgetId,
 };
 
-use druid::{Data, Lens, Widget, WidgetExt};
+use druid::{Data, Widget};
 use image::{imageops::thumbnail, RgbImage};
 
 use crate::{AppState, Thumbnail};
@@ -66,7 +60,7 @@ impl DisplayImage {
                 .decode()
                 .unwrap()
                 .into_rgb8();
-            sender.send(image);
+            sender.send(image).unwrap();
             sink.submit_command(FINISHED_READING_IMAGE, (), widget_id)
                 .unwrap();
         });
@@ -85,9 +79,9 @@ pub fn create_thumbnails(paths: Vec<PathBuf>) -> Arc<Vec<Thumbnail>> {
         // dbg!(width, height);
         let (new_width, new_height) = {
             let max_height = 150.0;
-            let scale = max_height / image.height() as f64;
-            let scaled_width = image.width() as f64 * scale;
-            let scaled_height = image.height() as f64 * scale;
+            let scale = max_height / height as f64;
+            let scaled_width = width as f64 * scale;
+            let scaled_height = height as f64 * scale;
             (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
         };
         let image = thumbnail(&image, new_width, new_height);
@@ -108,7 +102,7 @@ pub fn create_thumbnails(paths: Vec<PathBuf>) -> Arc<Vec<Thumbnail>> {
 
 pub fn read_images(sink: ExtEventSink, path: PathBuf) {
     std::thread::spawn(move || {
-        let mut paths: Vec<PathBuf> = std::fs::read_dir(path)
+        let paths: Vec<PathBuf> = std::fs::read_dir(path)
             .unwrap()
             .map(|path| path.unwrap().path())
             .collect();
@@ -129,8 +123,8 @@ impl Widget<AppState> for DisplayImage {
         &mut self,
         ctx: &mut druid::EventCtx,
         event: &druid::Event,
-        data: &mut AppState,
-        env: &Env,
+        _data: &mut AppState,
+        _env: &Env,
     ) {
         match event {
             Event::Command(image_selector)
@@ -154,10 +148,10 @@ impl Widget<AppState> for DisplayImage {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut druid::LifeCycleCtx,
-        event: &druid::LifeCycle,
-        data: &AppState,
-        env: &Env,
+        _ctx: &mut druid::LifeCycleCtx,
+        _event: &druid::LifeCycle,
+        _data: &AppState,
+        _env: &Env,
     ) {
     }
 
@@ -166,7 +160,7 @@ impl Widget<AppState> for DisplayImage {
         ctx: &mut druid::UpdateCtx,
         old_data: &AppState,
         data: &AppState,
-        env: &Env,
+        _env: &Env,
     ) {
         if data.images.is_empty() {
             return;
@@ -220,7 +214,7 @@ impl Widget<AppState> for DisplayImage {
 
 pub struct Button<T: Data> {
     text: Label<T>,
-    color: druid::Color,
+    // color: druid::Color,
     background_color: druid::Color,
     hover_color: druid::Color,
     active_color: druid::Color,
@@ -236,10 +230,8 @@ impl<T: Data> Button<T> {
         active_color: Color,
     ) -> Self {
         Self {
-            text: Label::new(text)
-                .with_text_color(color.clone())
-                .with_text_size(30.0),
-            color,
+            text: Label::new(text).with_text_color(color).with_text_size(30.0),
+            // color,
             background_color,
             hover_color,
             active_color,
@@ -253,8 +245,8 @@ impl<T: Data> Widget<T> for Button<T> {
         &mut self,
         ctx: &mut druid::EventCtx,
         event: &druid::Event,
-        data: &mut T,
-        env: &Env,
+        _data: &mut T,
+        _env: &Env,
     ) {
         match event {
             Event::MouseDown(_) => {

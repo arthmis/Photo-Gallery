@@ -1,29 +1,23 @@
-#![allow(warnings)]
-use std::{
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::Arc,
-};
+// #![allow(warnings)]
+use std::{path::PathBuf, sync::Arc};
 
 use druid::{
-    commands, lens,
-    piet::{ImageFormat, InterpolationMode},
-    text::EditableText,
-    text::TextLayout,
+    commands,
+    piet::InterpolationMode,
     widget::{
-        Align, Button, Container, Controller, CrossAxisAlignment, FillStrat,
-        Flex, FlexParams, Image, Label, LensWrap, List, ListIter,
-        MainAxisAlignment, Padding, Painter, Scroll, SizedBox, TextBox,
+        Container, Controller, CrossAxisAlignment, FillStrat, Flex, FlexParams,
+        Image, List, ListIter, MainAxisAlignment, Painter,
     },
-    AppDelegate, AppLauncher, Color, Command, Data, Env, Event, EventCtx,
-    FileDialogOptions, FileInfo, ImageBuf, Insets, Lens, LensExt, LifeCycle,
-    LocalizedString, MenuDesc, MenuItem, RenderContext, Selector, Target,
-    Widget, WidgetExt, WindowDesc,
+    AppLauncher, Color, Data, Env, Event, EventCtx, FileDialogOptions,
+    FileInfo, ImageBuf, Insets, Lens, LifeCycle, LocalizedString, MenuItem,
+    RenderContext, Selector, Widget, WidgetExt, WindowDesc,
 };
-use image::{imageops::thumbnail, RgbImage};
 
+pub mod scroll;
+pub mod scroll_component;
 pub mod widget;
 use crate::widget::*;
+pub use scroll::Scroll;
 
 #[derive(Clone, Data, Lens, Debug)]
 pub struct AppState {
@@ -97,7 +91,7 @@ impl ListIter<(usize, Thumbnail)> for AppState {
         let mut new_data = Vec::with_capacity(self.thumbnails.len());
         let mut any_changed = false;
         for (i, item) in self.thumbnails.iter().enumerate() {
-            let mut owned_item = item.to_owned();
+            let owned_item = item.to_owned();
             cb(&mut (self.current_image_idx, owned_item.clone()), i);
             if !any_changed && !item.same(&owned_item) {
                 any_changed = true;
@@ -114,81 +108,81 @@ impl ListIter<(usize, Thumbnail)> for AppState {
     }
 }
 
-pub struct ListController;
-impl Controller<AppState, List<(usize, Thumbnail)>> for ListController {
-    fn event(
-        &mut self,
-        child: &mut List<(usize, Thumbnail)>,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut AppState,
-        env: &Env,
-    ) {
-        let open_selector: Selector<AppState> =
-            Selector::new("druid-builtin.open-file-path");
-        let select_image_selector: Selector<usize> =
-            Selector::new("select_thumbnail");
-        match event {
-            Event::Command(open) if open.is(open_selector) => {
-                dbg!("got open command in list controller");
-                // I don't know if this is right
-                // if I don't return here, the application crashes everytime
-                // I close it because of unwrap() and can't find selector
-                // is the command being sent periodically?
-                // let payload: &FileInfo = open.get_unchecked(Selector::new(
-                //     "druid-builtin.open-file-path",
-                // ));
+// pub struct ListController;
+// impl Controller<AppState, List<(usize, Thumbnail)>> for ListController {
+//     fn event(
+//         &mut self,
+//         child: &mut List<(usize, Thumbnail)>,
+//         ctx: &mut EventCtx,
+//         event: &Event,
+//         data: &mut AppState,
+//         env: &Env,
+//     ) {
+//         let open_selector: Selector<AppState> =
+//             Selector::new("druid-builtin.open-file-path");
+//         let select_image_selector: Selector<usize> =
+//             Selector::new("select_thumbnail");
+//         match event {
+//             Event::Command(open) if open.is(open_selector) => {
+//                 dbg!("got open command in list controller");
+//                 // I don't know if this is right
+//                 // if I don't return here, the application crashes everytime
+//                 // I close it because of unwrap() and can't find selector
+//                 // is the command being sent periodically?
+//                 // let payload: &FileInfo = open.get_unchecked(Selector::new(
+//                 //     "druid-builtin.open-file-path",
+//                 // ));
 
-                // let path = payload.path();
-                // let mut paths: Vec<PathBuf> = std::fs::read_dir(path)
-                //     .unwrap()
-                //     .map(|path| path.unwrap().path())
-                //     .collect();
+//                 // let path = payload.path();
+//                 // let mut paths: Vec<PathBuf> = std::fs::read_dir(path)
+//                 //     .unwrap()
+//                 //     .map(|path| path.unwrap().path())
+//                 //     .collect();
 
-                // data.images = Arc::new(paths);
-                // data.current_image = 0;
-                // data.create_thumbnails();
+//                 // data.images = Arc::new(paths);
+//                 // data.current_image = 0;
+//                 // data.create_thumbnails();
 
-                ctx.request_layout();
-                ctx.request_paint();
-            }
-            Event::Command(select_image)
-                if select_image.is(select_image_selector) =>
-            {
-                // let index = select_image.get_unchecked(select_image_selector);
-                // data.current_image = *index;
+//                 ctx.request_layout();
+//                 ctx.request_paint();
+//             }
+//             Event::Command(select_image)
+//                 if select_image.is(select_image_selector) =>
+//             {
+//                 // let index = select_image.get_unchecked(select_image_selector);
+//                 // data.current_image = *index;
 
-                dbg!("got select command in list controller");
-                ctx.request_layout();
-                ctx.request_paint();
-            }
-            _ => (),
-        }
-        child.event(ctx, event, data, env)
-    }
+//                 dbg!("got select command in list controller");
+//                 ctx.request_layout();
+//                 ctx.request_paint();
+//             }
+//             _ => (),
+//         }
+//         child.event(ctx, event, data, env)
+//     }
 
-    fn lifecycle(
-        &mut self,
-        child: &mut List<(usize, Thumbnail)>,
-        ctx: &mut druid::LifeCycleCtx,
-        event: &LifeCycle,
-        data: &AppState,
-        env: &Env,
-    ) {
-        child.lifecycle(ctx, event, data, env)
-    }
+//     fn lifecycle(
+//         &mut self,
+//         child: &mut List<(usize, Thumbnail)>,
+//         ctx: &mut druid::LifeCycleCtx,
+//         event: &LifeCycle,
+//         data: &AppState,
+//         env: &Env,
+//     ) {
+//         child.lifecycle(ctx, event, data, env)
+//     }
 
-    fn update(
-        &mut self,
-        child: &mut List<(usize, Thumbnail)>,
-        ctx: &mut druid::UpdateCtx,
-        old_data: &AppState,
-        data: &AppState,
-        env: &Env,
-    ) {
-        child.update(ctx, old_data, data, env)
-    }
-}
+//     fn update(
+//         &mut self,
+//         child: &mut List<(usize, Thumbnail)>,
+//         ctx: &mut druid::UpdateCtx,
+//         old_data: &AppState,
+//         data: &AppState,
+//         env: &Env,
+//     ) {
+//         child.update(ctx, old_data, data, env)
+//     }
+// }
 
 #[derive(Clone, Data, Lens, Debug)]
 pub struct Thumbnail {
@@ -217,19 +211,16 @@ impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
         data: &(usize, Thumbnail),
         env: &Env,
     ) {
-        match event {
-            LifeCycle::WidgetAdded => {
-                child.set_image_data(data.1.image.as_ref().clone());
-                ctx.request_layout();
-                ctx.request_paint();
-            }
-            _ => {}
+        if let LifeCycle::WidgetAdded = event {
+            child.set_image_data(data.1.image.as_ref().clone());
+            ctx.request_layout();
+            ctx.request_paint();
         }
         child.lifecycle(ctx, event, data, env)
     }
 }
 
-const IMAGE_FOLDER: &str = "./images - Copy";
+// const IMAGE_FOLDER: &str = "./images - Copy";
 
 fn main() {
     // let mut paths: Vec<PathBuf> = std::fs::read_dir(IMAGE_FOLDER)
@@ -348,7 +339,7 @@ fn ui_builder() -> impl Widget<AppState> {
             .fix_size(150.0, 150.0)
             .padding(15.0)
             .background(Painter::new(
-                |ctx, (current_image, data): &(usize, Thumbnail), env| {
+                |ctx, (current_image, data): &(usize, Thumbnail), _env| {
                     let is_hot = ctx.is_hot();
                     let is_active = ctx.is_active();
                     let is_selected = *current_image == data.index;
@@ -370,8 +361,8 @@ fn ui_builder() -> impl Widget<AppState> {
             ))
             .on_click(
                 |event: &mut EventCtx,
-                 (current_image, data): &mut (usize, Thumbnail),
-                 env| {
+                 (_current_image, data): &mut (usize, Thumbnail),
+                 _env| {
                     let select_image =
                         Selector::new("select_thumbnail").with(data.index);
                     event.submit_command(select_image);
