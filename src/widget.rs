@@ -57,7 +57,7 @@ pub fn create_thumbnails(paths: Vec<PathBuf>) -> Arc<Vec<Thumbnail>> {
         );
         new_images.push(Thumbnail {
             index: new_images.len(),
-            image: Arc::new(image),
+            image,
         });
     }
     Arc::new(new_images)
@@ -80,7 +80,7 @@ pub fn read_images(sink: ExtEventSink, path: PathBuf) {
             paths.push(path);
             thumbnails.push_back(Thumbnail {
                 index: i,
-                image: Arc::new(ImageBuf::empty()),
+                image: ImageBuf::empty(),
             })
         }
 
@@ -113,12 +113,12 @@ pub fn read_images(sink: ExtEventSink, path: PathBuf) {
                 let image = thumbnail(&image, new_width, new_height);
 
                 let (width, height) = image.dimensions();
-                let image = Arc::new(ImageBuf::from_raw(
+                let image = ImageBuf::from_raw(
                     image.into_raw(),
                     ImageFormat::Rgb,
                     width as usize,
                     height as usize,
-                ));
+                );
                 Thumbnail { index, image }
             };
             sink.submit_command(

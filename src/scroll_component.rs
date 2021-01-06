@@ -461,16 +461,6 @@ impl ScrollComponent {
                         );
                     }
                 }
-                Event::Internal(internal_event) => {
-                    // when the mouse leaves the window from scroll, scrollbar should fade
-                    if let InternalEvent::MouseLeave = internal_event {
-                        self.hovered = BarHoveredState::None;
-                        self.reset_scrollbar_fade(
-                            |d| ctx.request_timer(d),
-                            env,
-                        );
-                    }
-                }
                 Event::Timer(id) if *id == self.timer_id => {
                     // Schedule scroll bars animation
                     ctx.request_anim_frame();
@@ -534,9 +524,17 @@ impl ScrollComponent {
         event: &LifeCycle,
         env: &Env,
     ) {
-        if let LifeCycle::Size(_) = event {
-            // Show the scrollbars any time our size changes
-            self.reset_scrollbar_fade(|d| ctx.request_timer(d), &env);
+        match event {
+            LifeCycle::Size(_) => {
+                // Show the scrollbars any time our size changes
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d), &env)
+            }
+            LifeCycle::HotChanged(_) => {
+                // when the mouse leaves the window from scroll, scrollbar should fade
+                self.hovered = BarHoveredState::None;
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+            }
+            _ => (),
         }
     }
 }

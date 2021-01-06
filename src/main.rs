@@ -40,7 +40,6 @@ impl Controller<AppState, Container<AppState>> for AppStateController {
     ) {
         match event {
             Event::Command(open) if open.is(OPEN_SELECTOR) => {
-                dbg!("got open command in display image");
                 // I don't know if this is right
                 // if I don't return here, the application crashes everytime
                 // I close it because of unwrap() and can't find selector
@@ -52,18 +51,12 @@ impl Controller<AppState, Container<AppState>> for AppStateController {
                 let path = payload.path();
                 let sink = ctx.get_external_handle();
                 read_images(sink, path.to_owned());
-
-                ctx.request_layout();
-                ctx.request_paint();
             }
             Event::Command(select_image)
                 if select_image.is(SELECT_IMAGE_SELECTOR) =>
             {
                 let index = select_image.get_unchecked(SELECT_IMAGE_SELECTOR);
                 data.current_image_idx = *index;
-
-                ctx.request_layout();
-                ctx.request_paint();
             }
             Event::Command(paths) if paths.is(FINISHED_READING_FOLDER) => {
                 let (paths, thumbnails) =
@@ -71,11 +64,8 @@ impl Controller<AppState, Container<AppState>> for AppStateController {
                 data.images = paths;
                 data.current_image_idx = 0;
                 data.thumbnails = thumbnails;
-                ctx.request_layout();
-                ctx.request_paint();
             }
             Event::Command(selector) if selector.is(CREATED_THUMBNAIL) => {
-                dbg!("getting thumbnail");
                 let thumbnail = selector.get_unchecked(CREATED_THUMBNAIL);
                 data.thumbnails[thumbnail.index] = thumbnail.clone();
             }
@@ -116,11 +106,22 @@ impl ListIter<(usize, Thumbnail)> for AppState {
     }
 }
 
-#[derive(Clone, Data, Lens, Debug)]
+#[derive(Clone, Lens, Debug)]
 pub struct Thumbnail {
     index: usize,
-    image: Arc<ImageBuf>,
+    image: ImageBuf,
 }
+
+impl Data for Thumbnail {
+    fn same(&self, other: &Self) -> bool {
+        self.index == other.index
+            && self
+                .image
+                .raw_pixels_shared()
+                .same(&other.image.raw_pixels_shared())
+    }
+}
+
 struct ThumbnailController;
 
 impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
@@ -144,7 +145,7 @@ impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
         env: &Env,
     ) {
         if let LifeCycle::WidgetAdded = event {
-            child.set_image_data(data.1.image.as_ref().clone());
+            child.set_image_data(data.1.image.clone());
             ctx.request_layout();
             ctx.request_paint();
         }
@@ -161,8 +162,8 @@ impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
     ) {
         let (_, old_image) = old_data;
         let (_, current_image) = data;
-        if !current_image.image.same(&old_image.image) {
-            child.set_image_data(current_image.image.as_ref().clone());
+        if !current_image.same(old_image) {
+            child.set_image_data(current_image.image.clone());
             ctx.request_layout();
             ctx.request_paint();
         }
@@ -285,6 +286,7 @@ fn ui_builder() -> impl Widget<AppState> {
 
     let film_strip_list: List<(usize, Thumbnail)> = List::new(|| {
         Image::new(ImageBuf::empty())
+            .interpolation_mode(InterpolationMode::NearestNeighbor)
             .controller(ThumbnailController {})
             .fix_size(150.0, 150.0)
             .padding(15.0)
@@ -329,6 +331,7 @@ fn ui_builder() -> impl Widget<AppState> {
         .must_fill_main_axis(true)
         .with_flex_child(image_view, FlexParams::new(1.0, None))
         .with_child(film_strip_view);
+
     Container::new(layout)
         .background(druid::Color::rgb8(255, 255, 255))
         .controller(AppStateController {})
