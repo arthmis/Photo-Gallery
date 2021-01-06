@@ -3,6 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use druid::{
     commands,
+    im::Vector,
     piet::InterpolationMode,
     widget::{
         Container, Controller, CrossAxisAlignment, FillStrat, Flex, FlexParams,
@@ -23,7 +24,7 @@ pub use scroll::Scroll;
 pub struct AppState {
     images: Arc<Vec<PathBuf>>,
     current_image_idx: usize,
-    thumbnails: Arc<Vec<Thumbnail>>,
+    thumbnails: Vector<Thumbnail>,
 }
 
 pub struct AppStateController;
@@ -70,6 +71,13 @@ impl Controller<AppState, Container<AppState>> for AppStateController {
                 data.images = paths;
                 data.current_image_idx = 0;
                 data.thumbnails = thumbnails;
+                ctx.request_layout();
+                ctx.request_paint();
+            }
+            Event::Command(selector) if selector.is(CREATED_THUMBNAIL) => {
+                dbg!("getting thumbnail");
+                let thumbnail = selector.get_unchecked(CREATED_THUMBNAIL);
+                data.thumbnails[thumbnail.index] = thumbnail.clone();
             }
             _ => (),
         }
@@ -88,7 +96,7 @@ impl ListIter<(usize, Thumbnail)> for AppState {
         &mut self,
         mut cb: impl FnMut(&mut (usize, Thumbnail), usize),
     ) {
-        let mut new_data = Vec::with_capacity(self.thumbnails.len());
+        let mut new_data = Vector::new();
         let mut any_changed = false;
         for (i, item) in self.thumbnails.iter().enumerate() {
             let owned_item = item.to_owned();
@@ -96,10 +104,10 @@ impl ListIter<(usize, Thumbnail)> for AppState {
             if !any_changed && !item.same(&owned_item) {
                 any_changed = true;
             }
-            new_data.push(owned_item);
+            new_data.push_back(owned_item);
         }
         if any_changed {
-            self.thumbnails = Arc::new(new_data);
+            self.thumbnails = new_data;
         }
     }
 
@@ -107,82 +115,6 @@ impl ListIter<(usize, Thumbnail)> for AppState {
         self.thumbnails.len()
     }
 }
-
-// pub struct ListController;
-// impl Controller<AppState, List<(usize, Thumbnail)>> for ListController {
-//     fn event(
-//         &mut self,
-//         child: &mut List<(usize, Thumbnail)>,
-//         ctx: &mut EventCtx,
-//         event: &Event,
-//         data: &mut AppState,
-//         env: &Env,
-//     ) {
-//         let open_selector: Selector<AppState> =
-//             Selector::new("druid-builtin.open-file-path");
-//         let select_image_selector: Selector<usize> =
-//             Selector::new("select_thumbnail");
-//         match event {
-//             Event::Command(open) if open.is(open_selector) => {
-//                 dbg!("got open command in list controller");
-//                 // I don't know if this is right
-//                 // if I don't return here, the application crashes everytime
-//                 // I close it because of unwrap() and can't find selector
-//                 // is the command being sent periodically?
-//                 // let payload: &FileInfo = open.get_unchecked(Selector::new(
-//                 //     "druid-builtin.open-file-path",
-//                 // ));
-
-//                 // let path = payload.path();
-//                 // let mut paths: Vec<PathBuf> = std::fs::read_dir(path)
-//                 //     .unwrap()
-//                 //     .map(|path| path.unwrap().path())
-//                 //     .collect();
-
-//                 // data.images = Arc::new(paths);
-//                 // data.current_image = 0;
-//                 // data.create_thumbnails();
-
-//                 ctx.request_layout();
-//                 ctx.request_paint();
-//             }
-//             Event::Command(select_image)
-//                 if select_image.is(select_image_selector) =>
-//             {
-//                 // let index = select_image.get_unchecked(select_image_selector);
-//                 // data.current_image = *index;
-
-//                 dbg!("got select command in list controller");
-//                 ctx.request_layout();
-//                 ctx.request_paint();
-//             }
-//             _ => (),
-//         }
-//         child.event(ctx, event, data, env)
-//     }
-
-//     fn lifecycle(
-//         &mut self,
-//         child: &mut List<(usize, Thumbnail)>,
-//         ctx: &mut druid::LifeCycleCtx,
-//         event: &LifeCycle,
-//         data: &AppState,
-//         env: &Env,
-//     ) {
-//         child.lifecycle(ctx, event, data, env)
-//     }
-
-//     fn update(
-//         &mut self,
-//         child: &mut List<(usize, Thumbnail)>,
-//         ctx: &mut druid::UpdateCtx,
-//         old_data: &AppState,
-//         data: &AppState,
-//         env: &Env,
-//     ) {
-//         child.update(ctx, old_data, data, env)
-//     }
-// }
 
 #[derive(Clone, Data, Lens, Debug)]
 pub struct Thumbnail {
@@ -217,6 +149,24 @@ impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
             ctx.request_paint();
         }
         child.lifecycle(ctx, event, data, env)
+    }
+
+    fn update(
+        &mut self,
+        child: &mut Image,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &(usize, Thumbnail),
+        data: &(usize, Thumbnail),
+        env: &Env,
+    ) {
+        let (_, old_image) = old_data;
+        let (_, current_image) = data;
+        if !current_image.image.same(&old_image.image) {
+            child.set_image_data(current_image.image.as_ref().clone());
+            ctx.request_layout();
+            ctx.request_paint();
+        }
+        child.update(ctx, old_data, data, env)
     }
 }
 
@@ -269,7 +219,7 @@ fn main() {
         .launch(AppState {
             images: Arc::new(Vec::new()),
             current_image_idx: 0,
-            thumbnails: Arc::new(Vec::new()),
+            thumbnails: Vector::new(),
         })
         .unwrap();
 }

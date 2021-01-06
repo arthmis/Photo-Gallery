@@ -5,6 +5,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use druid::{
     self,
+    im::Vector,
     piet::ImageFormat,
     widget::{Image, Label, LabelText},
     Affine, Color, Env, Event, ExtEventSink, ImageBuf, LifeCycle,
@@ -22,11 +23,114 @@ pub const SELECT_IMAGE_SELECTOR: Selector<usize> =
     Selector::new("select_thumbnail");
 pub const FINISHED_READING_FOLDER: Selector<(
     Arc<Vec<PathBuf>>,
-    Arc<Vec<Thumbnail>>,
+    Vector<Thumbnail>,
 )> = Selector::new("finish_reading_folder");
 pub const FINISHED_READING_IMAGE: Selector<()> =
     Selector::new("finished_reading_image");
+pub const CREATED_THUMBNAIL: Selector<Thumbnail> =
+    Selector::new("created_thumbnail");
 
+pub fn create_thumbnails(paths: Vec<PathBuf>) -> Arc<Vec<Thumbnail>> {
+    let mut new_images = Vec::new();
+    for path in paths.iter() {
+        let image = image::io::Reader::open(path)
+            .unwrap()
+            .decode()
+            .unwrap()
+            .into_rgb8();
+        let (width, height) = image.dimensions();
+        // dbg!(width, height);
+        let (new_width, new_height) = {
+            let max_height = 150.0;
+            let scale = max_height / height as f64;
+            let scaled_width = width as f64 * scale;
+            let scaled_height = height as f64 * scale;
+            (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
+        };
+        let image = thumbnail(&image, new_width, new_height);
+        let (width, height) = image.dimensions();
+        let image = ImageBuf::from_raw(
+            image.into_raw(),
+            ImageFormat::Rgb,
+            width as usize,
+            height as usize,
+        );
+        new_images.push(Thumbnail {
+            index: new_images.len(),
+            image: Arc::new(image),
+        });
+    }
+    Arc::new(new_images)
+}
+
+pub fn read_images(sink: ExtEventSink, path: PathBuf) {
+    std::thread::spawn(move || {
+        // let paths: Vec<PathBuf> = std::fs::read_dir(path)
+        //     .unwrap()
+        //     .map(|path| path.unwrap().path())
+        //     .collect();
+        // TODO all of this assumes the folder has only images that won't fail decoding
+        // I will have to figure out which files are images and only send those back to the
+        // app state
+        // I could send the image and its path together when building the thumbnails
+        let mut paths = Vec::new();
+        let mut thumbnails = Vector::new();
+        for (i, path) in std::fs::read_dir(path).unwrap().enumerate() {
+            let path = path.unwrap().path();
+            paths.push(path);
+            thumbnails.push_back(Thumbnail {
+                index: i,
+                image: Arc::new(ImageBuf::empty()),
+            })
+        }
+
+        // let thumbnails = Arc::new(Vec::with_capacity(paths.len()));
+        sink.submit_command(
+            FINISHED_READING_FOLDER,
+            (Arc::new(paths.clone()), thumbnails),
+            // paths,
+            Target::Auto,
+        )
+        .unwrap();
+        // let thumbnails = create_thumbnails(paths.clone());
+        // this might have paths that are not images so I might need to change this in the future
+        for (index, path) in paths.iter().enumerate() {
+            let thumbnail = {
+                let image = image::io::Reader::open(path)
+                    .unwrap()
+                    .decode()
+                    .unwrap()
+                    .into_rgb8();
+
+                let (width, height) = image.dimensions();
+                let (new_width, new_height) = {
+                    let max_height = 150.0;
+                    let scale = max_height / height as f64;
+                    let scaled_width = width as f64 * scale;
+                    let scaled_height = height as f64 * scale;
+                    (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
+                };
+                let image = thumbnail(&image, new_width, new_height);
+
+                let (width, height) = image.dimensions();
+                let image = Arc::new(ImageBuf::from_raw(
+                    image.into_raw(),
+                    ImageFormat::Rgb,
+                    width as usize,
+                    height as usize,
+                ));
+                Thumbnail { index, image }
+            };
+            sink.submit_command(
+                CREATED_THUMBNAIL,
+                thumbnail,
+                // paths,
+                Target::Auto,
+            )
+            .unwrap();
+        }
+    });
+}
 pub struct DisplayImage {
     pub image: Arc<Image>,
     sender: SyncSender<RgbImage>,
@@ -65,57 +169,6 @@ impl DisplayImage {
                 .unwrap();
         });
     }
-}
-
-pub fn create_thumbnails(paths: Vec<PathBuf>) -> Arc<Vec<Thumbnail>> {
-    let mut new_images = Vec::new();
-    for path in paths.iter() {
-        let image = image::io::Reader::open(path)
-            .unwrap()
-            .decode()
-            .unwrap()
-            .into_rgb8();
-        let (width, height) = image.dimensions();
-        // dbg!(width, height);
-        let (new_width, new_height) = {
-            let max_height = 150.0;
-            let scale = max_height / height as f64;
-            let scaled_width = width as f64 * scale;
-            let scaled_height = height as f64 * scale;
-            (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
-        };
-        let image = thumbnail(&image, new_width, new_height);
-        let (width, height) = image.dimensions();
-        let image = ImageBuf::from_raw(
-            image.into_raw(),
-            ImageFormat::Rgb,
-            width as usize,
-            height as usize,
-        );
-        new_images.push(Thumbnail {
-            index: new_images.len(),
-            image: Arc::new(image),
-        });
-    }
-    Arc::new(new_images)
-}
-
-pub fn read_images(sink: ExtEventSink, path: PathBuf) {
-    std::thread::spawn(move || {
-        let paths: Vec<PathBuf> = std::fs::read_dir(path)
-            .unwrap()
-            .map(|path| path.unwrap().path())
-            .collect();
-
-        let thumbnails = create_thumbnails(paths.clone());
-        sink.submit_command(
-            FINISHED_READING_FOLDER,
-            (Arc::new(paths), thumbnails),
-            // paths,
-            Target::Auto,
-        )
-        .unwrap();
-    });
 }
 
 impl Widget<AppState> for DisplayImage {
