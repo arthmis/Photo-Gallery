@@ -17,12 +17,9 @@
 
 use std::time::Duration;
 
+use druid::kurbo::{Point, Rect, Vec2};
 use druid::theme;
 use druid::widget::Viewport;
-use druid::{
-    kurbo::{Point, Rect, Vec2},
-    InternalEvent,
-};
 use druid::{
     Env, Event, EventCtx, LifeCycle, LifeCycleCtx, PaintCtx, RenderContext,
     TimerToken,

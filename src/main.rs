@@ -240,16 +240,14 @@ fn ui_builder() -> impl Widget<AppState> {
         active_color.clone(),
     )
     .on_click(|_ctx, data: &mut AppState, _env| {
-        if data.images.is_empty() {
+        if data.images.is_empty() || data.current_image_idx == 0 {
             return;
         }
-        if data.current_image_idx == 0 {
-            data.current_image_idx = data.images.len() - 1;
-        } else {
-            data.current_image_idx -= 1;
-        }
+
+        data.current_image_idx -= 1;
     })
-    .fix_size(button_width, button_height);
+    .fix_width(button_width)
+    .expand_height();
 
     let right_button = crate::widget::Button::new(
         "❯",
@@ -259,16 +257,15 @@ fn ui_builder() -> impl Widget<AppState> {
         active_color,
     )
     .on_click(|_ctx, data: &mut AppState, _env| {
-        if data.images.is_empty() {
+        if data.images.is_empty()
+            || data.current_image_idx == data.images.len() - 1
+        {
             return;
         }
-        if data.current_image_idx == data.images.len() - 1 {
-            data.current_image_idx = 0
-        } else {
-            data.current_image_idx += 1;
-        }
+        data.current_image_idx += 1;
     })
-    .fix_size(button_width, button_height);
+    .fix_width(button_width)
+    .expand_height();
 
     let image = Image::new(ImageBuf::empty())
         .interpolation_mode(InterpolationMode::Bilinear)
@@ -284,7 +281,7 @@ fn ui_builder() -> impl Widget<AppState> {
         .cross_axis_alignment(CrossAxisAlignment::Center)
         .main_axis_alignment(MainAxisAlignment::SpaceBetween);
 
-    let film_strip_list: List<(usize, Thumbnail)> = List::new(|| {
+    let film_strip_list = List::new(|| {
         Image::new(ImageBuf::empty())
             .interpolation_mode(InterpolationMode::NearestNeighbor)
             .controller(ThumbnailController {})
@@ -325,7 +322,8 @@ fn ui_builder() -> impl Widget<AppState> {
 
     let film_strip_view = Scroll::new(film_strip_list)
         .horizontal()
-        .background(Color::rgb8(0xee, 0xee, 0xee));
+        .background(Color::rgb8(0xee, 0xee, 0xee))
+        .expand_width();
 
     let layout = Flex::column()
         .must_fill_main_axis(true)
