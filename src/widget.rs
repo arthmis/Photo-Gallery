@@ -15,7 +15,7 @@ use druid::{
 use druid::{Data, Widget};
 use image::{imageops::thumbnail, RgbImage};
 
-use crate::{AppState, Thumbnail};
+use crate::{data::Thumbnail, AppState};
 
 pub const OPEN_SELECTOR: Selector<AppState> =
     Selector::new("druid-builtin.open-file-path");
