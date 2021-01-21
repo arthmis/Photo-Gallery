@@ -1,26 +1,172 @@
+use std::{
+    fs::{self},
+    thread,
+};
+
 use druid::{
-    piet::InterpolationMode,
+    im::Vector,
+    piet::{ImageFormat, InterpolationMode},
     widget::{
         Container, CrossAxisAlignment, FillStrat, Flex, FlexParams, Image,
         Label, List, MainAxisAlignment, Painter,
     },
-    Color, EventCtx, ImageBuf, Insets, RenderContext, Selector, Widget,
+    Color, EventCtx, ImageBuf, Insets, RenderContext, Selector, Target, Widget,
     WidgetExt,
 };
+use fs::read_dir;
+use image::{imageops::thumbnail, io::Reader, RgbImage};
+use log::error;
+use walkdir::{DirEntry, WalkDir};
 
+use crate::Scroll;
 use crate::{
-    data::{AppStateController, Thumbnail, ThumbnailController},
+    data::{
+        AppStateController, GalleryThumbnailController, ImageFolder,
+        MainViewController, Thumbnail, ThumbnailController,
+    },
     widget::DisplayImage,
-    AppState, Scroll,
+    AppState,
 };
+// use druid::widget::Scroll;
 
-pub fn main_view() -> Box<dyn Widget<AppState>> {
-    let layout = Flex::column();
-    let container = Container::new(layout);
-    Box::new(container)
+fn image_gridview_builder() -> impl Widget<ImageFolder> {
+    // this will display the folder name
+    let folder_name = Label::dynamic(|data: &String, _env| data.clone())
+        .with_text_color(Color::BLACK);
+
+    // this will display the image thumbnails
+    let thumbnails = List::new(|| {
+        Image::new(ImageBuf::empty())
+            .interpolation_mode(InterpolationMode::NearestNeighbor)
+            .controller(GalleryThumbnailController {})
+            .fix_size(150., 150.)
+            .padding(15.)
+    })
+    .horizontal()
+    .with_spacing(5.);
+
+    let thumbnails = Scroll::new(thumbnails).horizontal();
+    // let thumbnails =
+    //     Flex::row().with_child(thumbnails).must_fill_main_axis(true);
+
+    Flex::column()
+        .with_child(folder_name.lens(ImageFolder::name))
+        .with_child(thumbnails.lens(ImageFolder::thumbnails))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
-pub fn ui_builder() -> Box<dyn Widget<AppState>> {
+pub fn main_view() -> Box<dyn Widget<AppState>> {
+    let gallery_list = List::new(image_gridview_builder);
+    // let gallery_list = Scroll::new(gallery_list).vertical();
+    let layout = {
+        let layout = Flex::column().with_child(gallery_list);
+        // let layout = Flex::row()
+        //     .with_child(layout)
+        //     // .must_fill_main_axis(true)
+        //     .background(Color::WHITE)
+        //     .fix_width(1000.);
+        layout
+    }
+    .lens(AppState::all_images);
+
+    let container = Container::new(layout)
+        .background(Color::WHITE)
+        .controller(MainViewController)
+        .on_added(|_self, ctx, data, _env| {
+            let handle = ctx.get_external_handle();
+            let folder = data.images.clone();
+            thread::spawn(move || {
+                let walk = WalkDir::new(&folder[0]).into_iter().filter_entry(
+                    |entry| {
+                        // only walks directories, not files, and only keeps directories
+                        // that don't fail to read
+                        if entry.path().is_dir() {
+                            match read_dir(entry.path()) {
+                                Ok(mut dir) => dir.next().is_some(),
+                                Err(_) => false,
+                            }
+                        } else {
+                            false
+                        }
+                    },
+                );
+                for entry in walk {
+                    let entry = entry.unwrap();
+                    let thumbnails = read_directory(&entry);
+                    if !thumbnails.is_empty() {
+                        let image_folder = ImageFolder {
+                            name: entry.path().to_string_lossy().to_string(),
+                            thumbnails,
+                        };
+                        handle
+                            .submit_command(
+                                FINISHED_READING_IMAGE_FOLDER,
+                                image_folder,
+                                Target::Auto,
+                            )
+                            .unwrap();
+                    }
+                }
+            });
+        });
+    // Box::new(container)
+    Box::new(Scroll::new(container).vertical())
+}
+pub const FINISHED_READING_IMAGE_FOLDER: Selector<ImageFolder> =
+    Selector::new("finished_reading_image_folder");
+fn read_directory(entry: &DirEntry) -> Vector<Thumbnail> {
+    let mut images = Vector::new();
+    let entries = fs::read_dir(entry.path()).unwrap();
+    for file in entries {
+        let file = file.unwrap();
+        if file.path().is_file() {
+            let image = match Reader::open(file.path()) {
+                Ok(image) => match image.with_guessed_format() {
+                    Ok(image) => image,
+                    Err(err) => {
+                        error!("Error getting image format: {}", err);
+                        continue;
+                    }
+                },
+                Err(err) => {
+                    error!("Error opening file: {}", err);
+                    continue;
+                }
+            };
+            let image = match image.decode() {
+                Ok(image) => image,
+                Err(_) => {
+                    continue;
+                }
+            }
+            .to_rgb8();
+            images.push_back(create_thumbnail(images.len(), image));
+        }
+    }
+    images
+}
+fn create_thumbnail(index: usize, image: RgbImage) -> Thumbnail {
+    let (width, height) = image.dimensions();
+    // dbg!(width, height);
+    let (new_width, new_height) = {
+        let max_height = 150.0;
+        let scale = max_height / height as f64;
+        let scaled_width = width as f64 * scale;
+        let scaled_height = height as f64 * scale;
+        (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
+    };
+    let image = thumbnail(&image, new_width, new_height);
+    let (width, height) = image.dimensions();
+    let image = ImageBuf::from_raw(
+        image.into_raw(),
+        ImageFormat::Rgb,
+        width as usize,
+        height as usize,
+    );
+    Thumbnail { index, image }
+}
+
+pub fn image_view_builder() -> Box<dyn Widget<AppState>> {
     let button_width = 50.0;
     let font_color = Color::rgb8(0, 0, 0);
     let bg_color = Color::rgb8(0xff, 0xff, 0xff);

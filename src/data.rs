@@ -7,9 +7,12 @@ use druid::{
 };
 use druid_navigator::navigator::{View, ViewController};
 
-use crate::widget::{
-    read_images, CREATED_THUMBNAIL, FINISHED_READING_FOLDER, OPEN_SELECTOR,
-    SELECT_IMAGE_SELECTOR,
+use crate::{
+    view::FINISHED_READING_IMAGE_FOLDER,
+    widget::{
+        read_images, CREATED_THUMBNAIL, FINISHED_READING_FOLDER, OPEN_SELECTOR,
+        SELECT_IMAGE_SELECTOR,
+    },
 };
 
 #[derive(Clone, Data, Lens, Debug)]
@@ -18,6 +21,8 @@ pub struct AppState {
     pub current_image_idx: usize,
     pub thumbnails: Vector<Thumbnail>,
     pub views: Vector<AppView>,
+    pub all_images: Vector<ImageFolder>,
+    pub test_text: Vector<String>,
 }
 
 #[derive(Debug, Clone, Data, PartialEq, Hash, Eq)]
@@ -46,6 +51,33 @@ impl ViewController<AppView> for AppState {
 
     fn is_empty(&self) -> bool {
         self.views.is_empty()
+    }
+}
+
+pub struct MainViewController;
+
+impl Controller<AppState, Container<AppState>> for MainViewController {
+    fn event(
+        &mut self,
+        child: &mut Container<AppState>,
+        ctx: &mut druid::EventCtx,
+        event: &Event,
+        data: &mut AppState,
+        env: &Env,
+    ) {
+        match event {
+            Event::Command(selector)
+                if selector.is(FINISHED_READING_IMAGE_FOLDER) =>
+            {
+                let image_folder =
+                    selector.get_unchecked(FINISHED_READING_IMAGE_FOLDER);
+                data.all_images.push_back(image_folder.clone());
+                ctx.request_layout();
+                ctx.request_paint();
+            }
+            _ => {}
+        }
+        child.event(ctx, event, data, env)
     }
 }
 
@@ -135,6 +167,42 @@ impl Data for Thumbnail {
     }
 }
 
+pub struct GalleryThumbnailController;
+impl Controller<Thumbnail, Image> for GalleryThumbnailController {
+    fn lifecycle(
+        &mut self,
+        child: &mut Image,
+        ctx: &mut druid::LifeCycleCtx,
+        event: &LifeCycle,
+        data: &Thumbnail,
+        env: &Env,
+    ) {
+        if let LifeCycle::WidgetAdded = event {
+            child.set_image_data(data.image.clone());
+            ctx.request_layout();
+            ctx.request_paint();
+        }
+        child.lifecycle(ctx, event, data, env)
+    }
+
+    fn update(
+        &mut self,
+        child: &mut Image,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &Thumbnail,
+        data: &Thumbnail,
+        env: &Env,
+    ) {
+        let old_image = old_data;
+        let current_image = data;
+        if !current_image.same(old_image) {
+            child.set_image_data(current_image.image.clone());
+            ctx.request_layout();
+            ctx.request_paint();
+        }
+        child.update(ctx, old_data, data, env)
+    }
+}
 pub struct ThumbnailController;
 
 impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
@@ -182,4 +250,10 @@ impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
         }
         child.update(ctx, old_data, data, env)
     }
+}
+
+#[derive(Debug, Clone, Data, Lens)]
+pub struct ImageFolder {
+    pub name: String,
+    pub thumbnails: Vector<Thumbnail>,
 }
