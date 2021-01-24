@@ -13,6 +13,8 @@ use druid::{
     Color, EventCtx, ImageBuf, Insets, RenderContext, Selector, Target, Widget,
     WidgetExt,
 };
+use druid_dynamic_box::DynamicSizedBox;
+use druid_gridview::GridView;
 use fs::read_dir;
 use image::{imageops::thumbnail, io::Reader, RgbImage};
 use log::error;
@@ -32,26 +34,33 @@ use crate::{
 fn image_gridview_builder() -> impl Widget<ImageFolder> {
     // this will display the folder name
     let folder_name = Label::dynamic(|data: &String, _env| data.clone())
-        .with_text_color(Color::BLACK);
+        .with_text_color(Color::BLACK)
+        .lens(ImageFolder::name);
 
     // this will display the image thumbnails
-    let thumbnails = List::new(|| {
+    let thumbnails = GridView::new(|| {
         Image::new(ImageBuf::empty())
             .interpolation_mode(InterpolationMode::NearestNeighbor)
             .controller(GalleryThumbnailController {})
             .fix_size(150., 150.)
-            .padding(15.)
+            .padding(5.)
     })
-    .horizontal()
-    .with_spacing(5.);
+    .with_vertical_spacing(5.)
+    .wrap()
+    .lens(ImageFolder::thumbnails);
+    let thumbnails = Flex::row()
+        .with_flex_child(thumbnails, 1.0)
+        .main_axis_alignment(MainAxisAlignment::Start);
+    let thumbnails = Flex::column()
+        .with_child(folder_name)
+        .with_child(thumbnails)
+        .cross_axis_alignment(CrossAxisAlignment::Start);
+    let thumbnails = DynamicSizedBox::new(thumbnails).with_width(0.9);
 
-    let thumbnails = Scroll::new(thumbnails).horizontal();
-    // let thumbnails =
-    //     Flex::row().with_child(thumbnails).must_fill_main_axis(true);
+    let thumbnails = Scroll::new(thumbnails.center()).vertical().expand_width();
 
     Flex::column()
-        .with_child(folder_name.lens(ImageFolder::name))
-        .with_child(thumbnails.lens(ImageFolder::thumbnails))
+        .with_child(thumbnails)
         .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
@@ -114,6 +123,7 @@ pub fn main_view() -> Box<dyn Widget<AppState>> {
 }
 pub const FINISHED_READING_IMAGE_FOLDER: Selector<ImageFolder> =
     Selector::new("finished_reading_image_folder");
+
 fn read_directory(entry: &DirEntry) -> Vector<Thumbnail> {
     let mut images = Vector::new();
     let entries = fs::read_dir(entry.path()).unwrap();
@@ -145,6 +155,7 @@ fn read_directory(entry: &DirEntry) -> Vector<Thumbnail> {
     }
     images
 }
+
 fn create_thumbnail(index: usize, image: RgbImage) -> Thumbnail {
     let (width, height) = image.dimensions();
     // dbg!(width, height);

@@ -1,14 +1,21 @@
 [package]
 name = "image-viewer"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["lazypassion <25536767+lazypassion@users.noreply.github.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dependencies.druid]
+git = "https://github.com/linebender/druid"
+rev = "de5f88a"
+features = ["im"]
+
 [dependencies]
-druid = { git = "https://github.com/linebender/druid.git", features = ["im"]}
+# druid = { git = "https://github.com/linebender/druid.git", features = ["im"]}
 druid-navigator = { path = "../druid-navigator" }
+druid-gridview = { path = "../druid-gridview" }
+druid-dynamic-box = { path = "../druid-dynamic-box" }
 image = "0.23"
 walkdir = "2"
 log = "0.4.13"
