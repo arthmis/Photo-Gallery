@@ -15,7 +15,10 @@ use druid::{
 use druid::{Data, Widget};
 use image::{imageops::thumbnail, RgbImage};
 
-use crate::{data::Thumbnail, AppState};
+use crate::{
+    data::{ImageViewState, Thumbnail},
+    AppState,
+};
 
 pub const OPEN_SELECTOR: Selector<AppState> =
     Selector::new("druid-builtin.open-file-path");
@@ -171,12 +174,12 @@ impl DisplayImage {
     }
 }
 
-impl Widget<AppState> for DisplayImage {
+impl Widget<ImageViewState> for DisplayImage {
     fn event(
         &mut self,
         ctx: &mut druid::EventCtx,
         event: &druid::Event,
-        _data: &mut AppState,
+        _data: &mut ImageViewState,
         _env: &Env,
     ) {
         match event {
@@ -203,7 +206,7 @@ impl Widget<AppState> for DisplayImage {
         &mut self,
         _ctx: &mut druid::LifeCycleCtx,
         _event: &druid::LifeCycle,
-        _data: &AppState,
+        _data: &ImageViewState,
         _env: &Env,
     ) {
     }
@@ -211,16 +214,14 @@ impl Widget<AppState> for DisplayImage {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        old_data: &AppState,
-        data: &AppState,
+        old_data: &ImageViewState,
+        data: &ImageViewState,
         _env: &Env,
     ) {
-        if data.images.is_empty() {
+        if data.paths.is_empty() {
             return;
         }
-        if data.current_image_idx != old_data.current_image_idx
-            || data.images != old_data.images
-        {
+        if data.selected != old_data.selected || data.paths != old_data.paths {
             // let image =
             //     image::io::Reader::open(&data.images[data.current_image_idx])
             //         .unwrap()
@@ -237,7 +238,7 @@ impl Widget<AppState> for DisplayImage {
             // let image = Image::new(image)
             //     .interpolation_mode(InterpolationMode::Bilinear);
             // self.image = Arc::new(image);
-            let path = data.images[data.current_image_idx].clone();
+            let path = data.paths[data.selected].as_ref().clone();
             let sink = ctx.get_external_handle();
             // only need to send this payload back to itself
             // after it finishes reading the image on a separate thread
@@ -252,7 +253,7 @@ impl Widget<AppState> for DisplayImage {
         &mut self,
         ctx: &mut druid::LayoutCtx,
         bc: &druid::BoxConstraints,
-        data: &AppState,
+        data: &ImageViewState,
         env: &Env,
     ) -> druid::Size {
         Arc::get_mut(&mut self.image)
@@ -260,7 +261,12 @@ impl Widget<AppState> for DisplayImage {
             .layout(ctx, bc, data, env)
     }
 
-    fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &AppState, env: &Env) {
+    fn paint(
+        &mut self,
+        ctx: &mut druid::PaintCtx,
+        data: &ImageViewState,
+        env: &Env,
+    ) {
         Arc::get_mut(&mut self.image).unwrap().paint(ctx, data, env);
     }
 }

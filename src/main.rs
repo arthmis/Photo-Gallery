@@ -5,14 +5,13 @@ use data::{AppState, AppView};
 use druid::{
     commands,
     im::{vector, Vector},
-    widget::{Container, Flex, Label, List},
-    AppLauncher, Color, FileDialogOptions, LocalizedString, MenuItem, Widget,
-    WidgetExt, WindowDesc,
+    AppLauncher, FileDialogOptions, LocalizedString, MenuItem, Widget,
+    WindowDesc,
 };
 
 // use druid_widget_nursery::navigator::{Navigator, View, ViewController};
 use druid_navigator::navigator::Navigator;
-use view::{image_view_builder, main_view};
+use view::{folder_view, image_view_builder, main_view};
 
 mod data;
 pub mod scroll;
@@ -48,13 +47,15 @@ fn main() {
             images: Arc::new(vec![PathBuf::from(IMAGE_FOLDER)]),
             current_image_idx: 0,
             thumbnails: Vector::new(),
-            views: Vector::new(),
+            // this will back the Navigator, so it always has to be initialized with something
+            views: vector![AppView::MainView],
             all_images: Vector::new(),
-            test_text: vector![
-                "Hello".to_string(),
-                "Test".to_string(),
-                "Another".to_string()
-            ],
+            selected_folder: None,
+            // test_text: vector![
+            //     "Hello".to_string(),
+            //     "Test".to_string(),
+            //     "Another".to_string()
+            // ],
         })
         .unwrap();
 }
@@ -62,30 +63,31 @@ fn main() {
 fn navigator() -> impl Widget<AppState> {
     Navigator::new(AppView::MainView, main_view)
         .with_view_builder(AppView::ImageView, image_view_builder)
+        .with_view_builder(AppView::FolderView, folder_view)
     // Navigator::new(AppView::MainView, test_ui)
 }
 
-fn test_ui() -> impl Widget<AppState> {
-    let list = List::new(|| {
-        Label::dynamic(|data: &String, _env| data.clone())
-            .fix_size(2000., 150.)
-            .padding(15.)
-            .background(Color::BLUE)
-    })
-    .horizontal()
-    .fix_height(200.)
-    .lens(AppState::test_text);
-    let thumbnails = Scroll::new(list).horizontal();
-    let layout = {
-        let layout = Flex::column().with_child(thumbnails);
-        let layout = Flex::row().with_child(layout).background(Color::WHITE);
-        layout
-    };
+// fn test_ui() -> impl Widget<AppState> {
+//     let list = List::new(|| {
+//         Label::dynamic(|data: &String, _env| data.clone())
+//             .fix_size(2000., 150.)
+//             .padding(15.)
+//             .background(Color::BLUE)
+//     })
+//     .horizontal()
+//     .fix_height(200.)
+//     .lens(AppState::test_text);
+//     let thumbnails = Scroll::new(list).horizontal();
+//     let layout = {
+//         let layout = Flex::column().with_child(thumbnails);
+//         let layout = Flex::row().with_child(layout).background(Color::WHITE);
+//         layout
+//     };
 
-    let container = Container::new(layout)
-        .background(Color::WHITE)
-        .fix_height(2_000.);
-    Scroll::new(container).vertical()
-}
+//     let container = Container::new(layout)
+//         .background(Color::WHITE)
+//         .fix_height(2_000.);
+//     Scroll::new(container).vertical()
+// }
 
 // fn search_for_images() {}
