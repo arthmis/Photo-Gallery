@@ -16,9 +16,9 @@ use druid::{
     Color, Command, ImageBuf, LensExt, RenderContext, Selector, Target, Widget,
     WidgetExt,
 };
-use druid_dynamic_box::DynamicSizedBox;
 use druid_gridview::GridView;
 use druid_navigator::navigator::Navigator;
+use druid_widget_nursery::DynamicSizedBox;
 use fs::read_dir;
 use image::{imageops::thumbnail, io::Reader, RgbImage};
 use log::error;

@@ -371,16 +371,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "druid-dynamic-box"
-version = "0.1.0"
-dependencies = [
- "druid",
- "log",
-]
-
-[[package]]
 name = "druid-gridview"
 version = "0.1.0"
+source = "git+https://github.com/arthmis/druid-gridview?branch=master#eece565d9781c13f3564e9c7527511fcbb41e225"
 dependencies = [
  "druid",
 ]
@@ -388,6 +381,7 @@ dependencies = [
 [[package]]
 name = "druid-navigator"
 version = "0.1.0"
+source = "git+https://github.com/arthmis/druid-navigator?branch=main#26b41a39ec1a46d274f750fe119e87b14e69d585"
 dependencies = [
  "druid",
  "log",
@@ -428,6 +422,15 @@ dependencies = [
  "web-sys",
  "winapi",
  "wio",
+]
+
+[[package]]
+name = "druid-widget-nursery"
+version = "0.1.0"
+source = "git+https://github.com/linebender/druid-widget-nursery#f4d25bd913411d03cd99ee409342b8b09020ca63"
+dependencies = [
+ "druid",
+ "log",
 ]
 
 [[package]]
@@ -861,9 +864,9 @@ name = "image-viewer"
 version = "0.3.0"
 dependencies = [
  "druid",
- "druid-dynamic-box",
  "druid-gridview",
  "druid-navigator",
+ "druid-widget-nursery",
  "image",
  "log",
  "walkdir",
