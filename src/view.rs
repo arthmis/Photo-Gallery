@@ -1,7 +1,6 @@
 use std::{
     fs::{self},
     path::PathBuf,
-    rc::Rc,
     sync::Arc,
     thread,
 };
@@ -14,11 +13,12 @@ use druid::{
         Container, CrossAxisAlignment, FillStrat, Flex, FlexParams, Image,
         Label, List, MainAxisAlignment, Painter, Scope,
     },
-    Color, Command, EventCtx, ImageBuf, Insets, Lens, LensExt, RenderContext,
-    Selector, Target, Widget, WidgetExt,
+    Color, Command, ImageBuf, LensExt, RenderContext, Selector, Target, Widget,
+    WidgetExt,
 };
 use druid_dynamic_box::DynamicSizedBox;
 use druid_gridview::GridView;
+use druid_navigator::navigator::Navigator;
 use fs::read_dir;
 use image::{imageops::thumbnail, io::Reader, RgbImage};
 use log::error;
@@ -26,12 +26,11 @@ use walkdir::{DirEntry, WalkDir};
 
 use crate::{
     data::{
-        AppView, FolderGalleryState, FolderThumbnailController,
-        FolderViewController, GalleryThumbnailController, GalleryTransfer,
-        ImageFolder, ImageViewController, ImageViewState, ImageViewTransfer,
-        MainViewController, Thumbnail, ThumbnailController,
+        DisplayImageController, FolderGalleryState, FolderThumbnailController,
+        FolderView, FolderViewController, GalleryThumbnailController,
+        GalleryTransfer, ImageFolder, ImageViewController, MainViewController,
+        Thumbnail,
     },
-    widget::DisplayImage,
     AppState,
 };
 use crate::{widget::Button, Scroll};
@@ -198,12 +197,29 @@ fn create_thumbnail(index: usize, image: RgbImage) -> Thumbnail {
 }
 
 pub const POP_VIEW: Selector<()> = Selector::new("app.pop-view");
-pub const PUSH_VIEW: Selector<AppView> = Selector::new("app.push-view");
+pub const POP_FOLDER_VIEW: Selector<()> = Selector::new("app.pop-folder-view");
+pub const PUSH_VIEW: Selector<FolderView> = Selector::new("app.push-view");
 pub const GALLERY_SELECTED_IMAGE: Selector<usize> =
     Selector::new("app.gallery-view.selected-image");
-pub fn folder_view() -> Box<dyn Widget<AppState>> {
+pub fn folder_navigator() -> Box<dyn Widget<AppState>> {
+    let navigator = Navigator::new(FolderView::Folder, folder_view_main)
+        .with_view_builder(FolderView::SingleImage, image_view_builder);
+    let scope = Scope::from_function(
+        FolderGalleryState::new,
+        GalleryTransfer,
+        navigator,
+    );
+    Box::new(scope)
+}
+pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
+    // let left_arrow_svg = include_str!("..\\icons\\arrow-left-short.svg")
+    //     .parse::<SvgData>()
+    //     .unwrap();
+    // let left_svg = Svg::new(left_arrow_svg.clone()).fill_mode(FillStrat::Fill);
+    // let back_button = SvgButton::new(
+    //     left_svg,
     let back_button = Button::new(
-        "❮",
+        "←",
         Color::BLACK,
         Color::rgb8(0xff, 0xff, 0xff),
         Color::rgb8(0xcc, 0xcc, 0xcc),
@@ -211,8 +227,10 @@ pub fn folder_view() -> Box<dyn Widget<AppState>> {
     )
     .on_click(|ctx, _data, _env| {
         // dbg!("clicked back btn");
+        // dbg!(data);
         ctx.submit_command(Command::new(POP_VIEW, (), Target::Auto));
     });
+    // .fix_width(50.);
 
     let title = Label::dynamic(|data: &String, _env| data.clone())
         .with_text_color(Color::BLACK)
@@ -247,7 +265,7 @@ pub fn folder_view() -> Box<dyn Widget<AppState>> {
                 dbg!("click on item", data.1);
                 ctx.submit_command(Command::new(
                     PUSH_VIEW,
-                    AppView::ImageView,
+                    FolderView::SingleImage,
                     Target::Auto,
                 ));
                 ctx.submit_command(Command::new(
@@ -270,14 +288,16 @@ pub fn folder_view() -> Box<dyn Widget<AppState>> {
         .expand_width()
         .background(Color::WHITE)
         .controller(FolderViewController);
-    let scope =
-        Scope::from_function(FolderGalleryState::new, GalleryTransfer, layout);
-    Box::new(scope)
+    // let scope =
+    //     Scope::from_function(FolderGalleryState::new, GalleryTransfer, layout);
+    Box::new(layout)
+    // Box::new(scope)
 }
 
-pub fn image_view_builder() -> Box<dyn Widget<AppState>> {
+// pub fn image_view_builder() -> Box<dyn Widget<AppState>> {
+pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
     let back_button = Button::new(
-        "❮",
+        "←",
         Color::BLACK,
         Color::rgb8(0xff, 0xff, 0xff),
         Color::rgb8(0xcc, 0xcc, 0xcc),
@@ -285,7 +305,7 @@ pub fn image_view_builder() -> Box<dyn Widget<AppState>> {
     )
     .on_click(|ctx, _data, _env| {
         // dbg!("clicked back btn");
-        ctx.submit_command(Command::new(POP_VIEW, (), Target::Auto));
+        ctx.submit_command(Command::new(POP_FOLDER_VIEW, (), Target::Auto));
     });
 
     let button_width = 50.0;
@@ -301,13 +321,14 @@ pub fn image_view_builder() -> Box<dyn Widget<AppState>> {
         hover_color.clone(),
         active_color.clone(),
     )
-    .on_click(|_ctx, data: &mut ImageViewState, _env| {
-        dbg!(&data);
-        if data.paths.is_empty() || data.selected == 0 {
+    .on_click(|_ctx, data: &mut FolderGalleryState, _env| {
+        // dbg!(&data.);
+        if data.paths.is_empty() || data.selected_image == 0 {
             return;
         }
 
-        data.selected -= 1;
+        data.selected_image -= 1;
+        dbg!("clicked left", data.selected_image);
     })
     .fix_width(button_width)
     .expand_height();
@@ -319,21 +340,24 @@ pub fn image_view_builder() -> Box<dyn Widget<AppState>> {
         hover_color,
         active_color,
     )
-    .on_click(|_ctx, data: &mut ImageViewState, _env| {
-        dbg!(&data);
-        if data.paths.is_empty() || data.selected == data.paths.len() - 1 {
+    .on_click(|_ctx, data: &mut FolderGalleryState, _env| {
+        // dbg!(&data);
+        if data.paths.is_empty() || data.selected_image == data.paths.len() - 1
+        {
             return;
         }
-        data.selected += 1;
+        data.selected_image += 1;
+        dbg!("clicked right", data.selected_image);
     })
     .fix_width(button_width)
     .expand_height();
 
     let image = Image::new(ImageBuf::empty())
         .interpolation_mode(InterpolationMode::Bilinear)
-        .fill_mode(FillStrat::Contain);
-    let image =
-        DisplayImage::new(image).padding(Insets::new(0.0, 5.0, 0.0, 5.0));
+        .fill_mode(FillStrat::Contain)
+        .controller(DisplayImageController::new());
+    // let image =
+    //     DisplayImage::new(image).padding(Insets::new(0.0, 5.0, 0.0, 5.0));
 
     let image_view = Flex::row()
         .must_fill_main_axis(true)
@@ -351,9 +375,7 @@ pub fn image_view_builder() -> Box<dyn Widget<AppState>> {
     let container = Container::new(layout)
         .background(druid::Color::rgb8(255, 255, 255))
         .controller(ImageViewController);
-    let scope =
-        Scope::from_function(ImageViewState::new, ImageViewTransfer, container);
-    Box::new(scope)
+    Box::new(container)
 }
 
 // pub fn filmstrip_view_builder() -> Box<dyn Widget<AppState>> {

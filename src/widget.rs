@@ -16,7 +16,7 @@ use druid::{Data, Widget};
 use image::{imageops::thumbnail, RgbImage};
 
 use crate::{
-    data::{ImageViewState, Thumbnail},
+    data::{FolderGalleryState, Thumbnail},
     AppState,
 };
 
@@ -174,12 +174,12 @@ impl DisplayImage {
     }
 }
 
-impl Widget<ImageViewState> for DisplayImage {
+impl Widget<FolderGalleryState> for DisplayImage {
     fn event(
         &mut self,
         ctx: &mut druid::EventCtx,
         event: &druid::Event,
-        _data: &mut ImageViewState,
+        _data: &mut FolderGalleryState,
         _env: &Env,
     ) {
         match event {
@@ -206,7 +206,7 @@ impl Widget<ImageViewState> for DisplayImage {
         &mut self,
         _ctx: &mut druid::LifeCycleCtx,
         _event: &druid::LifeCycle,
-        _data: &ImageViewState,
+        _data: &FolderGalleryState,
         _env: &Env,
     ) {
     }
@@ -214,14 +214,16 @@ impl Widget<ImageViewState> for DisplayImage {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        old_data: &ImageViewState,
-        data: &ImageViewState,
+        old_data: &FolderGalleryState,
+        data: &FolderGalleryState,
         _env: &Env,
     ) {
         if data.paths.is_empty() {
             return;
         }
-        if data.selected != old_data.selected || data.paths != old_data.paths {
+        if data.selected_image != old_data.selected_image
+            || data.paths != old_data.paths
+        {
             // let image =
             //     image::io::Reader::open(&data.images[data.current_image_idx])
             //         .unwrap()
@@ -238,7 +240,7 @@ impl Widget<ImageViewState> for DisplayImage {
             // let image = Image::new(image)
             //     .interpolation_mode(InterpolationMode::Bilinear);
             // self.image = Arc::new(image);
-            let path = data.paths[data.selected].as_ref().clone();
+            let path = data.paths[data.selected_image].as_ref().clone();
             let sink = ctx.get_external_handle();
             // only need to send this payload back to itself
             // after it finishes reading the image on a separate thread
@@ -253,7 +255,7 @@ impl Widget<ImageViewState> for DisplayImage {
         &mut self,
         ctx: &mut druid::LayoutCtx,
         bc: &druid::BoxConstraints,
-        data: &ImageViewState,
+        data: &FolderGalleryState,
         env: &Env,
     ) -> druid::Size {
         Arc::get_mut(&mut self.image)
@@ -264,7 +266,7 @@ impl Widget<ImageViewState> for DisplayImage {
     fn paint(
         &mut self,
         ctx: &mut druid::PaintCtx,
-        data: &ImageViewState,
+        data: &FolderGalleryState,
         env: &Env,
     ) {
         Arc::get_mut(&mut self.image).unwrap().paint(ctx, data, env);
@@ -397,3 +399,132 @@ impl<T: Data> Widget<T> for Button<T> {
         });
     }
 }
+// pub struct SvgButton<T> {
+//     text: Svg,
+//     // color: druid::Color,
+//     background_color: druid::Color,
+//     hover_color: druid::Color,
+//     active_color: druid::Color,
+//     text_size: Size,
+//     phantom_data: PhantomData<T>,
+// }
+
+// impl<T: Data> SvgButton<T> {
+//     pub fn new(
+//         text: Svg,
+//         color: Color,
+//         background_color: Color,
+//         hover_color: Color,
+//         active_color: Color,
+//     ) -> Self {
+//         Self {
+//             text,
+//             // color,
+//             background_color,
+//             hover_color,
+//             active_color,
+//             text_size: Size::ZERO,
+//             phantom_data: PhantomData,
+//         }
+//     }
+// }
+
+// impl<T: Data> Widget<T> for SvgButton<T> {
+//     fn event(
+//         &mut self,
+//         ctx: &mut druid::EventCtx,
+//         event: &druid::Event,
+//         _data: &mut T,
+//         _env: &Env,
+//     ) {
+//         match event {
+//             Event::MouseDown(_) => {
+//                 ctx.set_active(true);
+//                 ctx.request_paint();
+//             }
+//             Event::MouseUp(_) => {
+//                 if ctx.is_active() {
+//                     ctx.set_active(false);
+//                     ctx.request_paint();
+//                 }
+//             }
+//             _ => (),
+//         }
+//     }
+
+//     fn lifecycle(
+//         &mut self,
+//         ctx: &mut druid::LifeCycleCtx,
+//         event: &druid::LifeCycle,
+//         data: &T,
+//         env: &Env,
+//     ) {
+//         if let LifeCycle::HotChanged(_) = event {
+//             ctx.request_paint();
+//         }
+//         self.text.lifecycle(ctx, event, data, env)
+//     }
+
+//     fn update(
+//         &mut self,
+//         ctx: &mut druid::UpdateCtx,
+//         old_data: &T,
+//         data: &T,
+//         env: &Env,
+//     ) {
+//         self.text.update(ctx, old_data, data, env);
+//     }
+
+//     fn layout(
+//         &mut self,
+//         ctx: &mut druid::LayoutCtx,
+//         bc: &druid::BoxConstraints,
+//         data: &T,
+//         env: &Env,
+//     ) -> druid::Size {
+//         let (padding_width, padding_height) = (20.0, 20.0);
+//         // let padding = Size::new(padding_width, padding_height);
+//         // let label_bc = bc.shrink(padding).loosen();
+//         self.text_size = self.text.layout(ctx, &bc, data, env);
+//         // dbg!(&self.text_size);
+//         // HACK: to make sure we look okay at default sizes when beside a textbox,
+//         // we make sure we will have at least the same height as the default textbox.
+//         let min_height = 70.0;
+//         // let baseline = self.text.baseline_offset();
+//         // ctx.set_baseline_offset(baseline + padding_height);
+
+//         bc.constrain(Size::new(
+//             self.text_size.width + padding_width,
+//             (self.text_size.height + padding_height).max(min_height),
+//         ))
+//     }
+
+//     fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &T, env: &Env) {
+//         let is_active = ctx.is_active();
+//         let is_hot = ctx.is_hot();
+//         let size = ctx.size();
+
+//         let stroke_width = 0.0;
+//         let rect = size.to_rect();
+
+//         let (border_color, bg_color) = if is_hot {
+//             if is_active {
+//                 (self.active_color.clone(), self.active_color.clone())
+//             } else {
+//                 (self.hover_color.clone(), self.hover_color.clone())
+//             }
+//         } else {
+//             (self.background_color.clone(), self.background_color.clone())
+//         };
+
+//         // paint border
+//         ctx.stroke(rect, &border_color, stroke_width);
+//         ctx.fill(rect, &bg_color);
+
+//         let label_offset = (size.to_vec2() - self.text_size.to_vec2()) / 2.0;
+//         ctx.with_save(|ctx| {
+//             ctx.transform(Affine::translate(label_offset));
+//             self.text.paint(ctx, data, env);
+//         });
+//     }
+// }

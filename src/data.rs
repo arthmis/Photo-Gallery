@@ -1,22 +1,28 @@
-use std::{path::PathBuf, rc::Rc, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{
+        mpsc::{sync_channel, Receiver, SyncSender},
+        Arc,
+    },
+};
 
 use druid::{
-    im::Vector,
+    im::{vector, Vector},
+    piet::ImageFormat,
     widget::{Container, Controller, Image, ListIter, ScopeTransfer},
-    Data, Env, Event, FileInfo, ImageBuf, Lens, LifeCycle, Selector, Widget,
+    Data, Env, Event, ExtEventSink, ImageBuf, Lens, LifeCycle, LifeCycleCtx,
+    UpdateCtx, Widget, WidgetId,
 };
 use druid_gridview::GridIter;
 use druid_navigator::navigator::{View, ViewController};
+use image::RgbImage;
 
 use crate::{
     view::{
-        FINISHED_READING_IMAGE_FOLDER, GALLERY_SELECTED_IMAGE, POP_VIEW,
-        PUSH_VIEW, SELECTED_FOLDER,
+        FINISHED_READING_IMAGE_FOLDER, GALLERY_SELECTED_IMAGE, POP_FOLDER_VIEW,
+        POP_VIEW, PUSH_VIEW, SELECTED_FOLDER,
     },
-    widget::{
-        read_images, CREATED_THUMBNAIL, FINISHED_READING_FOLDER, OPEN_SELECTOR,
-        SELECT_IMAGE_SELECTOR,
-    },
+    widget::{FINISHED_READING_IMAGE, SELECT_IMAGE_SELECTOR},
 };
 
 #[derive(Clone, Data, Lens, Debug)]
@@ -114,10 +120,10 @@ impl Controller<AppState, Container<AppState>> for MainViewController {
                 data.pop_view();
                 dbg!(data.views.len());
             }
-            Event::Command(selector) if selector.is(PUSH_VIEW) => {
-                let view = selector.get_unchecked(PUSH_VIEW);
-                data.add_view(view.clone());
-            }
+            // Event::Command(selector) if selector.is(PUSH_VIEW) => {
+            //     let view = selector.get_unchecked(PUSH_VIEW);
+            //     data.add_view(view.clone());
+            // }
             _ => {}
         }
         child.event(ctx, event, data, env)
@@ -125,15 +131,15 @@ impl Controller<AppState, Container<AppState>> for MainViewController {
 }
 pub struct ImageViewController;
 
-impl Controller<ImageViewState, Container<ImageViewState>>
+impl Controller<FolderGalleryState, Container<FolderGalleryState>>
     for ImageViewController
 {
     fn event(
         &mut self,
-        child: &mut Container<ImageViewState>,
+        child: &mut Container<FolderGalleryState>,
         ctx: &mut druid::EventCtx,
         event: &Event,
-        data: &mut ImageViewState,
+        data: &mut FolderGalleryState,
         env: &Env,
     ) {
         match event {
@@ -154,7 +160,7 @@ impl Controller<ImageViewState, Container<ImageViewState>>
                 if select_image.is(SELECT_IMAGE_SELECTOR) =>
             {
                 let index = select_image.get_unchecked(SELECT_IMAGE_SELECTOR);
-                data.selected = *index;
+                data.selected_image = *index;
             }
             // Event::Command(paths) if paths.is(FINISHED_READING_FOLDER) => {
             //     let (paths, thumbnails) =
@@ -263,7 +269,7 @@ impl Controller<Thumbnail, Image> for GalleryThumbnailController {
     fn lifecycle(
         &mut self,
         child: &mut Image,
-        ctx: &mut druid::LifeCycleCtx,
+        ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
         data: &Thumbnail,
         env: &Env,
@@ -279,7 +285,7 @@ impl Controller<Thumbnail, Image> for GalleryThumbnailController {
     fn update(
         &mut self,
         child: &mut Image,
-        ctx: &mut druid::UpdateCtx,
+        ctx: &mut UpdateCtx,
         old_data: &Thumbnail,
         data: &Thumbnail,
         env: &Env,
@@ -309,7 +315,7 @@ impl Controller<(Thumbnail, usize), Image> for FolderThumbnailController {
     fn lifecycle(
         &mut self,
         child: &mut Image,
-        ctx: &mut druid::LifeCycleCtx,
+        ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
         data: &(Thumbnail, usize),
         env: &Env,
@@ -325,7 +331,7 @@ impl Controller<(Thumbnail, usize), Image> for FolderThumbnailController {
     fn update(
         &mut self,
         child: &mut Image,
-        ctx: &mut druid::UpdateCtx,
+        ctx: &mut UpdateCtx,
         old_data: &(Thumbnail, usize),
         data: &(Thumbnail, usize),
         env: &Env,
@@ -388,7 +394,7 @@ impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
     fn lifecycle(
         &mut self,
         child: &mut Image,
-        ctx: &mut druid::LifeCycleCtx,
+        ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
         data: &(usize, Thumbnail),
         env: &Env,
@@ -404,7 +410,7 @@ impl Controller<(usize, Thumbnail), Image> for ThumbnailController {
     fn update(
         &mut self,
         child: &mut Image,
-        ctx: &mut druid::UpdateCtx,
+        ctx: &mut UpdateCtx,
         old_data: &(usize, Thumbnail),
         data: &(usize, Thumbnail),
         env: &Env,
@@ -429,71 +435,13 @@ pub struct ImageFolder {
 }
 
 #[derive(Debug, Clone, Data, Lens)]
-pub struct ImageViewState {
-    pub name: String,
-    pub paths: Vector<Arc<PathBuf>>,
-    pub selected: usize,
-    // pub thumbnails: Vector<Thumbnail>,
-}
-impl ImageViewState {
-    pub fn new(state: AppState) -> Self {
-        if let Some(idx) = state.selected_folder {
-            Self {
-                name: state.all_images[idx].name.clone(),
-                paths: state.all_images[idx].paths.clone(),
-                selected: 0,
-                // thumbnails: state.all_images[idx].thumbnails,
-            }
-        } else {
-            Self {
-                name: "".to_string(),
-                paths: Vector::new(),
-                selected: 0,
-                // thumbnails: Vector::new(),
-            }
-        }
-    }
-}
-
-pub struct ImageViewTransfer;
-impl ScopeTransfer for ImageViewTransfer {
-    type In = AppState;
-
-    type State = ImageViewState;
-
-    fn read_input(&self, state: &mut Self::State, inner: &Self::In) {
-        if let Some(idx) = inner.selected_folder {
-            let folder = &inner.all_images[idx];
-            state.name = folder.name.clone();
-            // state.selected = folder.selected.unwrap_or(0);
-            // state.thumbnails = folder.thumbnails.clone();
-            state.paths = folder.paths.clone();
-        } else {
-            state.name = "".to_string();
-            // state.thumbnails = Vector::new();
-            // state.selected = 0;
-            state.paths = Vector::new();
-        }
-    }
-
-    fn write_back_input(&self, state: &Self::State, inner: &mut Self::In) {
-        // if let Some(idx) = state.selected_folder {
-        //     inner.all_images[idx].name = state.name.clone();
-        //     inner.all_images[idx].thumbnails = state.images.clone();
-        // }
-        // else {
-        //     dbg!("This should do nothing because there is no state to write back.");
-        // }
-        // dbg!("This should do nothing because there is no state to write back.");
-    }
-}
-
-#[derive(Debug, Clone, Data, Lens)]
 pub struct FolderGalleryState {
     pub name: String,
     pub images: Vector<Thumbnail>,
     pub selected_folder: Option<usize>,
     pub selected_image: usize,
+    pub views: Vector<FolderView>,
+    pub paths: Vector<Arc<PathBuf>>,
 }
 impl FolderGalleryState {
     pub fn new(state: AppState) -> Self {
@@ -503,6 +451,8 @@ impl FolderGalleryState {
                 images: state.all_images[idx].thumbnails.clone(),
                 selected_folder: Some(idx),
                 selected_image: 0,
+                views: vector![FolderView::Folder],
+                paths: state.all_images[idx].paths.clone(),
             }
         } else {
             Self {
@@ -510,10 +460,40 @@ impl FolderGalleryState {
                 images: Vector::new(),
                 selected_folder: None,
                 selected_image: 0,
+                views: vector![FolderView::Folder],
+                paths: Vector::new(),
             }
         }
     }
 }
+impl ViewController<FolderView> for FolderGalleryState {
+    fn add_view(&mut self, view: FolderView) {
+        self.views.push_back(view);
+    }
+
+    fn pop_view(&mut self) {
+        self.views.pop_back();
+    }
+
+    fn current_view(&self) -> &FolderView {
+        let last = self.views.len() - 1;
+        &self.views[last]
+    }
+
+    fn len(&self) -> usize {
+        self.views.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.views.is_empty()
+    }
+}
+#[derive(Debug, Data, Clone, PartialEq, Eq, Hash)]
+pub enum FolderView {
+    Folder,
+    SingleImage,
+}
+impl View for FolderView {}
 
 pub struct FolderViewController;
 impl Controller<FolderGalleryState, Container<FolderGalleryState>>
@@ -532,6 +512,14 @@ impl Controller<FolderGalleryState, Container<FolderGalleryState>>
                 let idx = selector.get_unchecked(GALLERY_SELECTED_IMAGE);
                 data.selected_image = *idx;
             }
+            Event::Command(selector) if selector.is(PUSH_VIEW) => {
+                let view = selector.get_unchecked(PUSH_VIEW);
+                data.add_view(view.clone());
+            }
+            Event::Command(selector) if selector.is(POP_FOLDER_VIEW) => {
+                // let view = selector.get_unchecked(POP_FOLDER_VIEW);
+                data.pop_view();
+            }
             _ => (),
         }
         child.event(ctx, event, data, env)
@@ -540,7 +528,7 @@ impl Controller<FolderGalleryState, Container<FolderGalleryState>>
     fn lifecycle(
         &mut self,
         child: &mut Container<FolderGalleryState>,
-        ctx: &mut druid::LifeCycleCtx,
+        ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
         data: &FolderGalleryState,
         env: &Env,
@@ -551,7 +539,7 @@ impl Controller<FolderGalleryState, Container<FolderGalleryState>>
     fn update(
         &mut self,
         child: &mut Container<FolderGalleryState>,
-        ctx: &mut druid::UpdateCtx,
+        ctx: &mut UpdateCtx,
         old_data: &FolderGalleryState,
         data: &FolderGalleryState,
         env: &Env,
@@ -602,14 +590,40 @@ impl ScopeTransfer for GalleryTransfer {
     type State = FolderGalleryState;
 
     fn read_input(&self, state: &mut Self::State, inner: &Self::In) {
-        if let Some(idx) = inner.selected_folder {
-            state.selected_folder = Some(idx);
-            state.name = inner.all_images[idx].name.clone();
-            state.images = inner.all_images[idx].thumbnails.clone();
-        } else {
-            state.name = "".to_string();
-            state.images = Vector::new();
+        match inner.selected_folder {
+            Some(idx) => {
+                if let Some(current_idx) = state.selected_folder {
+                    if idx != current_idx {
+                        let folder = &inner.all_images[idx];
+                        dbg!("Change Folder", &folder.name);
+                        state.selected_folder = Some(idx);
+                        state.name = folder.name.clone();
+                        state.images = folder.thumbnails.clone();
+                        state.paths = folder.paths.clone();
+                    }
+                } else {
+                    let folder = &inner.all_images[idx];
+                    dbg!("None", &folder.name);
+                    state.selected_folder = Some(idx);
+                    state.name = folder.name.clone();
+                    state.images = folder.thumbnails.clone();
+                    state.paths = folder.paths.clone();
+                }
+            }
+            None => {
+                dbg!("Nothing should be read or maybe it should");
+            }
         }
+        // if let Some(idx) = inner.selected_folder {
+        //     let folder = &inner.all_images[idx];
+        //     state.selected_folder = Some(idx);
+        //     state.name = folder.name.clone();
+        //     state.images = folder.thumbnails.clone();
+        //     state.paths = folder.paths.clone();
+        // } else {
+        //     state.name = "".to_string();
+        //     state.images = Vector::new();
+        // }
     }
 
     fn write_back_input(&self, state: &Self::State, inner: &mut Self::In) {
@@ -619,5 +633,131 @@ impl ScopeTransfer for GalleryTransfer {
         } else {
             dbg!("This should do nothing because there is no state to write back.");
         }
+    }
+}
+pub struct DisplayImageController {
+    sender: SyncSender<RgbImage>,
+    receiver: Receiver<RgbImage>,
+}
+impl Controller<FolderGalleryState, Image> for DisplayImageController {
+    fn event(
+        &mut self,
+        child: &mut Image,
+        ctx: &mut druid::EventCtx,
+        event: &Event,
+        data: &mut FolderGalleryState,
+        env: &Env,
+    ) {
+        match event {
+            Event::Command(image_selector)
+                if image_selector.is(FINISHED_READING_IMAGE) =>
+            {
+                let image = self.receiver.recv().unwrap();
+                let (width, height) = image.dimensions();
+                let image = ImageBuf::from_raw(
+                    image.into_raw(),
+                    ImageFormat::Rgb,
+                    width as usize,
+                    height as usize,
+                );
+                child.set_image_data(image);
+                ctx.request_layout();
+                ctx.request_paint();
+                // dbg!(ctx.widget_id());
+            }
+            _ => (),
+        }
+        child.event(ctx, event, data, env)
+    }
+
+    fn update(
+        &mut self,
+        child: &mut Image,
+        ctx: &mut UpdateCtx,
+        old_data: &FolderGalleryState,
+        data: &FolderGalleryState,
+        env: &Env,
+    ) {
+        if data.paths.is_empty() {
+            return;
+        }
+        if data.selected_image != old_data.selected_image
+            || data.paths != old_data.paths
+        {
+            // let image = image::io::Reader::open(
+            //     data.paths[data.selected_image].as_ref(),
+            // )
+            // .unwrap()
+            // .with_guessed_format()
+            // .unwrap()
+            // .decode()
+            // .unwrap()
+            // .into_rgb8();
+            // let (width, height) = image.dimensions();
+            // let image = ImageBuf::from_raw(
+            //     image.into_raw(),
+            //     ImageFormat::Rgb,
+            //     width as usize,
+            //     height as usize,
+            // );
+            // let image = Image::new(image)
+            //     .interpolation_mode(InterpolationMode::Bilinear);
+            // child.set_image_data(image);
+            // self.image = Arc::new(image);
+            let path = data.paths[data.selected_image].as_ref().clone();
+            let sink = ctx.get_external_handle();
+            // only need to send this payload back to itself
+            // after it finishes reading the image on a separate thread
+            // only DisplayImage needs to see this payload
+            self.read_image(sink, path, ctx.widget_id());
+            ctx.request_layout();
+            ctx.request_paint();
+        }
+        child.update(ctx, old_data, data, env)
+    }
+
+    fn lifecycle(
+        &mut self,
+        child: &mut Image,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &FolderGalleryState,
+        env: &Env,
+    ) {
+        if let LifeCycle::WidgetAdded = event {
+            let path = data.paths[data.selected_image].as_ref().clone();
+            let sink = ctx.get_external_handle();
+            // only need to send this payload back to itself
+            // after it finishes reading the image on a separate thread
+            // only DisplayImage needs to see this payload
+            self.read_image(sink, path, ctx.widget_id());
+        }
+        child.lifecycle(ctx, event, data, env)
+    }
+}
+impl DisplayImageController {
+    pub fn new() -> Self {
+        let (sender, receiver) = sync_channel(3);
+
+        DisplayImageController { sender, receiver }
+    }
+
+    fn read_image(
+        &self,
+        sink: ExtEventSink,
+        path: PathBuf,
+        widget_id: WidgetId,
+    ) {
+        let sender = self.sender.clone();
+        std::thread::spawn(move || {
+            let image = image::io::Reader::open(path)
+                .unwrap()
+                .decode()
+                .unwrap()
+                .into_rgb8();
+            sender.send(image).unwrap();
+            sink.submit_command(FINISHED_READING_IMAGE, (), widget_id)
+                .unwrap();
+        });
     }
 }
