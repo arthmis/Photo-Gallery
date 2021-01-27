@@ -23,21 +23,21 @@ pub use scroll::Scroll;
 const IMAGE_FOLDER: &str = "D:\\My Pictures";
 
 fn main() {
-    let menu = {
-        let menu = druid::MenuDesc::empty();
-        let open = {
-            let open_folder_options = FileDialogOptions::new()
-                .select_directories()
-                .default_name("Open");
-            MenuItem::new(
-                LocalizedString::new("Open Folder"),
-                commands::SHOW_OPEN_PANEL.with(open_folder_options),
-            )
-        };
-        menu.append(open).append_separator()
-    };
+    // let menu = {
+    //     let menu = druid::MenuDesc::empty();
+    //     let open = {
+    //         let open_folder_options = FileDialogOptions::new()
+    //             .select_directories()
+    //             .default_name("Open");
+    //         MenuItem::new(
+    //             LocalizedString::new("Open Folder"),
+    //             commands::SHOW_OPEN_PANEL.with(open_folder_options),
+    //         )
+    //     };
+    //     menu.append(open).append_separator()
+    // };
     // let window = WindowDesc::new(ui_builder).menu(menu).title("Gallery");
-    let window = WindowDesc::new(navigator).menu(menu).title("Gallery");
+    let window = WindowDesc::new(navigator).title("Gallery");
     // let window = WindowDesc::new(test_ui).menu(menu).title("Gallery");
 
     AppLauncher::with_window(window)

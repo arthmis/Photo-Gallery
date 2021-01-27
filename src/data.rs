@@ -19,8 +19,8 @@ use image::RgbImage;
 
 use crate::{
     view::{
-        FINISHED_READING_IMAGE_FOLDER, GALLERY_SELECTED_IMAGE, POP_FOLDER_VIEW,
-        POP_VIEW, PUSH_VIEW, SELECTED_FOLDER,
+        FINISHED_READING_IMAGE_FOLDER, POP_FOLDER_VIEW, POP_VIEW,
+        PUSH_VIEW_WITH_SELECTED_IMAGE, SELECTED_FOLDER,
     },
     widget::{FINISHED_READING_IMAGE, SELECT_IMAGE_SELECTOR},
 };
@@ -508,13 +508,13 @@ impl Controller<FolderGalleryState, Container<FolderGalleryState>>
         env: &Env,
     ) {
         match event {
-            Event::Command(selector) if selector.is(GALLERY_SELECTED_IMAGE) => {
-                let idx = selector.get_unchecked(GALLERY_SELECTED_IMAGE);
-                data.selected_image = *idx;
-            }
-            Event::Command(selector) if selector.is(PUSH_VIEW) => {
-                let view = selector.get_unchecked(PUSH_VIEW);
+            Event::Command(selector)
+                if selector.is(PUSH_VIEW_WITH_SELECTED_IMAGE) =>
+            {
+                let (view, idx) =
+                    selector.get_unchecked(PUSH_VIEW_WITH_SELECTED_IMAGE);
                 data.add_view(view.clone());
+                data.selected_image = *idx;
             }
             Event::Command(selector) if selector.is(POP_FOLDER_VIEW) => {
                 // let view = selector.get_unchecked(POP_FOLDER_VIEW);
@@ -639,102 +639,6 @@ pub struct DisplayImageController {
     sender: SyncSender<RgbImage>,
     receiver: Receiver<RgbImage>,
 }
-impl Controller<FolderGalleryState, Image> for DisplayImageController {
-    fn event(
-        &mut self,
-        child: &mut Image,
-        ctx: &mut druid::EventCtx,
-        event: &Event,
-        data: &mut FolderGalleryState,
-        env: &Env,
-    ) {
-        match event {
-            Event::Command(image_selector)
-                if image_selector.is(FINISHED_READING_IMAGE) =>
-            {
-                let image = self.receiver.recv().unwrap();
-                let (width, height) = image.dimensions();
-                let image = ImageBuf::from_raw(
-                    image.into_raw(),
-                    ImageFormat::Rgb,
-                    width as usize,
-                    height as usize,
-                );
-                child.set_image_data(image);
-                ctx.request_layout();
-                ctx.request_paint();
-                // dbg!(ctx.widget_id());
-            }
-            _ => (),
-        }
-        child.event(ctx, event, data, env)
-    }
-
-    fn update(
-        &mut self,
-        child: &mut Image,
-        ctx: &mut UpdateCtx,
-        old_data: &FolderGalleryState,
-        data: &FolderGalleryState,
-        env: &Env,
-    ) {
-        if data.paths.is_empty() {
-            return;
-        }
-        if data.selected_image != old_data.selected_image
-            || data.paths != old_data.paths
-        {
-            // let image = image::io::Reader::open(
-            //     data.paths[data.selected_image].as_ref(),
-            // )
-            // .unwrap()
-            // .with_guessed_format()
-            // .unwrap()
-            // .decode()
-            // .unwrap()
-            // .into_rgb8();
-            // let (width, height) = image.dimensions();
-            // let image = ImageBuf::from_raw(
-            //     image.into_raw(),
-            //     ImageFormat::Rgb,
-            //     width as usize,
-            //     height as usize,
-            // );
-            // let image = Image::new(image)
-            //     .interpolation_mode(InterpolationMode::Bilinear);
-            // child.set_image_data(image);
-            // self.image = Arc::new(image);
-            let path = data.paths[data.selected_image].as_ref().clone();
-            let sink = ctx.get_external_handle();
-            // only need to send this payload back to itself
-            // after it finishes reading the image on a separate thread
-            // only DisplayImage needs to see this payload
-            self.read_image(sink, path, ctx.widget_id());
-            ctx.request_layout();
-            ctx.request_paint();
-        }
-        child.update(ctx, old_data, data, env)
-    }
-
-    fn lifecycle(
-        &mut self,
-        child: &mut Image,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &FolderGalleryState,
-        env: &Env,
-    ) {
-        if let LifeCycle::WidgetAdded = event {
-            let path = data.paths[data.selected_image].as_ref().clone();
-            let sink = ctx.get_external_handle();
-            // only need to send this payload back to itself
-            // after it finishes reading the image on a separate thread
-            // only DisplayImage needs to see this payload
-            self.read_image(sink, path, ctx.widget_id());
-        }
-        child.lifecycle(ctx, event, data, env)
-    }
-}
 impl DisplayImageController {
     pub fn new() -> Self {
         let (sender, receiver) = sync_channel(3);
@@ -759,5 +663,83 @@ impl DisplayImageController {
             sink.submit_command(FINISHED_READING_IMAGE, (), widget_id)
                 .unwrap();
         });
+    }
+}
+impl Controller<FolderGalleryState, Image> for DisplayImageController {
+    fn event(
+        &mut self,
+        child: &mut Image,
+        ctx: &mut druid::EventCtx,
+        event: &Event,
+        data: &mut FolderGalleryState,
+        env: &Env,
+    ) {
+        match event {
+            Event::Command(image_selector)
+                if image_selector.is(FINISHED_READING_IMAGE) =>
+            {
+                let image = self.receiver.recv().unwrap();
+                let (width, height) = image.dimensions();
+                let image = ImageBuf::from_raw(
+                    image.into_raw(),
+                    ImageFormat::Rgb,
+                    width as usize,
+                    height as usize,
+                );
+                child.set_image_data(image);
+                ctx.request_layout();
+                ctx.request_paint();
+            }
+            _ => (),
+        }
+        child.event(ctx, event, data, env)
+    }
+
+    fn update(
+        &mut self,
+        child: &mut Image,
+        ctx: &mut UpdateCtx,
+        old_data: &FolderGalleryState,
+        data: &FolderGalleryState,
+        env: &Env,
+    ) {
+        if data.paths.is_empty() {
+            return;
+        }
+        if data.selected_image != old_data.selected_image
+        // || data.paths != old_data.paths
+        {
+            let path = data.paths[data.selected_image].as_ref().clone();
+            let sink = ctx.get_external_handle();
+            // only need to send this payload back to itself
+            // after it finishes reading the image on a separate thread
+            // only DisplayImageController needs to see this payload
+            self.read_image(sink, path, ctx.widget_id());
+            ctx.request_layout();
+            ctx.request_paint();
+        }
+        child.update(ctx, old_data, data, env)
+    }
+
+    fn lifecycle(
+        &mut self,
+        child: &mut Image,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &FolderGalleryState,
+        env: &Env,
+    ) {
+        // TODO: doing this is currently not really safe, though
+        // not problematic. Druid warns because this might send an event
+        // back here, to read the image, before it gets laid out
+        if let LifeCycle::WidgetAdded = event {
+            let path = data.paths[data.selected_image].as_ref().clone();
+            let sink = ctx.get_external_handle();
+            // only need to send this payload back to itself
+            // after it finishes reading the image on a separate thread
+            // only DisplayImage needs to see this payload
+            self.read_image(sink, path, ctx.widget_id());
+        }
+        child.lifecycle(ctx, event, data, env)
     }
 }

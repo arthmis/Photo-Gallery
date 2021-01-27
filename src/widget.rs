@@ -289,9 +289,12 @@ impl<T: Data> Button<T> {
         background_color: Color,
         hover_color: Color,
         active_color: Color,
+        font_size: f64,
     ) -> Self {
         Self {
-            text: Label::new(text).with_text_color(color).with_text_size(30.0),
+            text: Label::new(text)
+                .with_text_color(color)
+                .with_text_size(font_size),
             // color,
             background_color,
             hover_color,
@@ -299,6 +302,12 @@ impl<T: Data> Button<T> {
             text_size: Size::ZERO,
         }
     }
+    // pub fn from_label(label: Label<T>) -> Button<T> {
+    //     Button {
+    //         label,
+    //         label_size: Size::ZERO,
+    //     }
+    // }
 }
 
 impl<T: Data> Widget<T> for Button<T> {

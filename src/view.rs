@@ -40,14 +40,31 @@ pub const SELECTED_FOLDER: Selector<usize> =
     Selector::new("app.selected-folder");
 
 fn image_gridview_builder() -> impl Widget<(ImageFolder, usize)> {
-    // this will display the folder name
+    // this lenses into the image folder found in the tuple
     let thumbnails_lens = lens!((ImageFolder, usize), 0)
         .map(|data| data.thumbnails.clone(), |_folder, _put| ());
+    // this will display the folder name
     let folder_name =
         Label::dynamic(|(folder, _idx): &(ImageFolder, usize), _env| {
             folder.name.clone()
         })
         .with_text_color(Color::BLACK)
+        .padding(5.)
+        .background(Painter::new(|ctx, _data, _env| {
+            let is_hot = ctx.is_hot();
+            let is_active = ctx.is_active();
+            let background_color = if is_active {
+                Color::rgb8(0x9f, 0x9f, 0x9f)
+            } else if is_hot {
+                Color::rgb8(0xdd, 0xdd, 0xdd)
+            } else {
+                Color::rgb8(0xff, 0xff, 0xff)
+            };
+
+            let rect = ctx.size().to_rect();
+            ctx.stroke(rect, &background_color, 0.);
+            ctx.fill(rect, &background_color);
+        }))
         .on_click(|ctx, (_folder, idx), _env| {
             // dbg!("clicking on folder");
             // dbg!(folder.name.clone());
@@ -87,9 +104,29 @@ fn image_gridview_builder() -> impl Widget<(ImageFolder, usize)> {
 }
 
 pub fn main_view() -> Box<dyn Widget<AppState>> {
+    let add_folder_btn = Button::new(
+        "+ Add Folder",
+        Color::BLACK,
+        Color::rgb8(0xff, 0xff, 0xff),
+        Color::rgb8(0xdd, 0xdd, 0xdd),
+        Color::rgb8(0x9f, 0x9f, 0x9f),
+        16.,
+    )
+    .fix_height(50.);
+    let menu_btns = Container::new(
+        Flex::row()
+            .with_child(add_folder_btn)
+            .must_fill_main_axis(true)
+            .main_axis_alignment(MainAxisAlignment::End)
+            .fix_height(40.),
+    )
+    .border(Color::from_hex_str("#aaaaaa").unwrap(), 1.);
+
     let gallery_list = List::new(image_gridview_builder);
-    // let gallery_list = Scroll::new(gallery_list).vertical();
-    let layout = Flex::column().with_child(gallery_list);
+    let layout = Flex::column()
+        // .with_child(add_folder_btn)
+        .with_child(menu_btns)
+        .with_child(gallery_list);
     // .lens(AppState::all_images);
 
     let container = Container::new(layout)
@@ -150,13 +187,7 @@ fn read_directory(
         let file = file.unwrap();
         if file.path().is_file() {
             let image = match Reader::open(file.path()) {
-                Ok(image) => match image.with_guessed_format() {
-                    Ok(image) => image,
-                    Err(err) => {
-                        error!("Error getting image format: {}", err);
-                        continue;
-                    }
-                },
+                Ok(image) => image,
                 Err(err) => {
                     error!("Error opening file: {}", err);
                     continue;
@@ -198,9 +229,10 @@ fn create_thumbnail(index: usize, image: RgbImage) -> Thumbnail {
 
 pub const POP_VIEW: Selector<()> = Selector::new("app.pop-view");
 pub const POP_FOLDER_VIEW: Selector<()> = Selector::new("app.pop-folder-view");
-pub const PUSH_VIEW: Selector<FolderView> = Selector::new("app.push-view");
-pub const GALLERY_SELECTED_IMAGE: Selector<usize> =
-    Selector::new("app.gallery-view.selected-image");
+pub const PUSH_VIEW_WITH_SELECTED_IMAGE: Selector<(FolderView, usize)> =
+    Selector::new("app.push-view-with-selected-image");
+// pub const GALLERY_SELECTED_IMAGE: Selector<usize> =
+// Selector::new("app.gallery-view.selected-image");
 pub fn folder_navigator() -> Box<dyn Widget<AppState>> {
     let navigator = Navigator::new(FolderView::Folder, folder_view_main)
         .with_view_builder(FolderView::SingleImage, image_view_builder);
@@ -224,6 +256,7 @@ pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
         Color::rgb8(0xff, 0xff, 0xff),
         Color::rgb8(0xcc, 0xcc, 0xcc),
         Color::rgb8(0x90, 0x90, 0x90),
+        16.,
     )
     .on_click(|ctx, _data, _env| {
         // dbg!("clicked back btn");
@@ -262,15 +295,9 @@ pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
                 ctx.fill(rect, &background_color);
             }))
             .on_click(|ctx, data, _env| {
-                dbg!("click on item", data.1);
                 ctx.submit_command(Command::new(
-                    PUSH_VIEW,
-                    FolderView::SingleImage,
-                    Target::Auto,
-                ));
-                ctx.submit_command(Command::new(
-                    GALLERY_SELECTED_IMAGE,
-                    data.1,
+                    PUSH_VIEW_WITH_SELECTED_IMAGE,
+                    (FolderView::SingleImage, data.1),
                     Target::Auto,
                 ));
             })
@@ -280,7 +307,11 @@ pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
     // let thumbnails = Flex::row()
     //     .with_flex_child(gallery, 1.0)
     //     .main_axis_alignment(MainAxisAlignment::Start);
-    let gallery = Scroll::new(gallery.center()).vertical().expand_width();
+    let gallery = gallery.align_left();
+    // .with_height(1.0);
+    let gallery =
+        DynamicSizedBox::new(Scroll::new(gallery).vertical().expand_width())
+            .with_width(0.95);
 
     let layout = Flex::column()
         .with_child(header)
@@ -302,11 +333,13 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
         Color::rgb8(0xff, 0xff, 0xff),
         Color::rgb8(0xcc, 0xcc, 0xcc),
         Color::rgb8(0x90, 0x90, 0x90),
+        16.,
     )
     .on_click(|ctx, _data, _env| {
         // dbg!("clicked back btn");
         ctx.submit_command(Command::new(POP_FOLDER_VIEW, (), Target::Auto));
-    });
+    })
+    .align_left();
 
     let button_width = 50.0;
     let font_color = Color::rgb8(0, 0, 0);
@@ -320,6 +353,7 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
         bg_color.clone(),
         hover_color.clone(),
         active_color.clone(),
+        16.,
     )
     .on_click(|_ctx, data: &mut FolderGalleryState, _env| {
         // dbg!(&data.);
@@ -339,6 +373,7 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
         bg_color,
         hover_color,
         active_color,
+        16.,
     )
     .on_click(|_ctx, data: &mut FolderGalleryState, _env| {
         // dbg!(&data);
@@ -359,9 +394,13 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
     // let image =
     //     DisplayImage::new(image).padding(Insets::new(0.0, 5.0, 0.0, 5.0));
 
+    let left_side_buttons = Flex::column()
+        .with_child(back_button)
+        .with_flex_child(left_button, 1.0);
     let image_view = Flex::row()
         .must_fill_main_axis(true)
-        .with_child(left_button)
+        // .with_child(left_button)
+        .with_child(left_side_buttons)
         .with_flex_child(image, FlexParams::new(1.0, None))
         .with_child(right_button)
         .cross_axis_alignment(CrossAxisAlignment::Center)
@@ -369,7 +408,7 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
 
     let layout = Flex::column()
         .must_fill_main_axis(true)
-        .with_child(back_button)
+        // .with_child(back_button)
         .with_flex_child(image_view, FlexParams::new(1.0, None));
 
     let container = Container::new(layout)
