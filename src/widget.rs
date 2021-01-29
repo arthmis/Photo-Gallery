@@ -9,29 +9,18 @@ use druid::{
     piet::ImageFormat,
     widget::{Image, Label, LabelText},
     Affine, Color, Env, Event, ExtEventSink, ImageBuf, LifeCycle,
-    RenderContext, Selector, Size, Target, WidgetId,
+    RenderContext, Size, Target, WidgetId,
 };
 
 use druid::{Data, Widget};
 use image::{imageops::thumbnail, RgbImage};
 
 use crate::{
+    app_commands::{
+        CREATED_THUMBNAIL, FINISHED_READING_FOLDER, FINISHED_READING_IMAGE,
+    },
     data::{FolderGalleryState, Thumbnail},
-    AppState,
 };
-
-pub const OPEN_SELECTOR: Selector<AppState> =
-    Selector::new("druid-builtin.open-file-path");
-pub const SELECT_IMAGE_SELECTOR: Selector<usize> =
-    Selector::new("select_thumbnail");
-pub const FINISHED_READING_FOLDER: Selector<(
-    Arc<Vec<PathBuf>>,
-    Vector<Thumbnail>,
-)> = Selector::new("finish_reading_folder");
-pub const FINISHED_READING_IMAGE: Selector<()> =
-    Selector::new("finished_reading_image");
-pub const CREATED_THUMBNAIL: Selector<Thumbnail> =
-    Selector::new("created_thumbnail");
 
 pub fn create_thumbnails(paths: Vec<PathBuf>) -> Arc<Vec<Thumbnail>> {
     let mut new_images = Vec::new();
