@@ -1,206 +1,33 @@
-use std::{
-    fs::{self},
-    path::{Path, PathBuf},
-    sync::Arc,
-    thread,
-};
+use std::{path::Path, thread};
 
 use druid::{
-    commands::SHOW_OPEN_PANEL,
-    im::Vector,
-    lens,
     piet::{ImageFormat, InterpolationMode},
     widget::{
-        Container, CrossAxisAlignment, FillStrat, Flex, FlexParams, Image,
-        Label, MainAxisAlignment, Painter, Scope,
+        Container, Controller, CrossAxisAlignment, FillStrat, Flex, FlexParams,
+        Image, Label, MainAxisAlignment, Painter, Scope,
     },
-    Color, Command, FileDialogOptions, ImageBuf, LensExt, RenderContext,
-    Target, Widget, WidgetExt,
+    Color, Command, Env, Event, ImageBuf, LensExt, RenderContext, Target,
+    Widget, WidgetExt,
 };
 use druid_gridview::GridView;
 use druid_navigator::navigator::Navigator;
 use druid_widget_nursery::DynamicSizedBox;
 use image::{imageops::thumbnail, io::Reader, ImageError, RgbImage};
-use log::error;
-use walkdir::DirEntry;
 
-use crate::app_commands::{
-    CREATED_THUMBNAIL, POP_FOLDER_VIEW, POP_VIEW,
-    PUSH_VIEW_WITH_SELECTED_IMAGE, SELECTED_FOLDER,
-};
 use crate::{
-    data::{
-        DisplayImageController, FolderGalleryState, FolderThumbnailController,
-        FolderView, FolderViewController, GalleryThumbnailController,
-        GalleryTransfer, ImageFolder, ImageViewController, MainViewController,
-        Thumbnail,
+    app_commands::{
+        CREATED_THUMBNAIL, POP_FOLDER_VIEW, POP_VIEW,
+        PUSH_VIEW_WITH_SELECTED_IMAGE, SELECT_IMAGE_SELECTOR,
     },
-    AppState,
+    app_data::{AppState, Thumbnail},
+    folder_view::{
+        DisplayImageController, FolderGalleryState, FolderView,
+        FolderViewController, GalleryTransfer,
+    },
+    widgets::{Button, Scroll},
 };
-use crate::{widgets::Button, widgets::Scroll};
-// use druid::widget::Scroll;
 
-fn image_gridview_builder() -> impl Widget<(ImageFolder, usize)> {
-    // this lenses into the image folder found in the tuple
-    let thumbnails_lens = lens!((ImageFolder, usize), 0)
-        .map(|data| data.thumbnails.clone(), |_folder, _put| ());
-
-    // this will display the folder name
-    let folder_name =
-        Label::dynamic(|(folder, _idx): &(ImageFolder, usize), _env| {
-            folder.name.clone().to_string_lossy().to_string()
-        })
-        .with_text_color(Color::BLACK)
-        .padding(5.)
-        .background(Painter::new(|ctx, _data, _env| {
-            let is_hot = ctx.is_hot();
-            let is_active = ctx.is_active();
-            let background_color = if is_active {
-                Color::rgb8(0x9f, 0x9f, 0x9f)
-            } else if is_hot {
-                Color::rgb8(0xdd, 0xdd, 0xdd)
-            } else {
-                Color::rgb8(0xff, 0xff, 0xff)
-            };
-
-            let rect = ctx.size().to_rect();
-            ctx.stroke(rect, &background_color, 0.);
-            ctx.fill(rect, &background_color);
-        }))
-        .on_click(|ctx, (_folder, idx), _env| {
-            ctx.submit_command(Command::new(
-                SELECTED_FOLDER,
-                *idx,
-                Target::Auto,
-            ))
-        });
-
-    let thumbnail = Image::new(ImageBuf::empty())
-        .controller(GalleryThumbnailController)
-        .lens(thumbnails_lens.index(0))
-        .fix_size(300., 300.);
-
-    // modify this to have consistent sizes
-    Flex::column()
-        .with_child(folder_name)
-        .with_child(thumbnail)
-        .fix_size(300., 300.)
-}
-
-pub fn main_view() -> Box<dyn Widget<AppState>> {
-    let add_folder_btn = Button::new(
-        "+ Add Folder",
-        Color::BLACK,
-        Color::rgb8(0xff, 0xff, 0xff),
-        Color::rgb8(0xdd, 0xdd, 0xdd),
-        Color::rgb8(0x9f, 0x9f, 0x9f),
-        16.,
-    )
-    .on_click(|ctx, _data, _env| {
-        let file_dialog = FileDialogOptions::new().select_directories();
-        ctx.submit_command(SHOW_OPEN_PANEL.with(file_dialog));
-    })
-    .fix_height(50.);
-
-    let menu_btns = Container::new(
-        Flex::row()
-            .with_child(add_folder_btn)
-            .must_fill_main_axis(true)
-            .main_axis_alignment(MainAxisAlignment::End)
-            .fix_height(40.),
-    )
-    .border(Color::rgb8(0xcc, 0xcc, 0xcc), 1.);
-
-    let gallery_list = GridView::new(image_gridview_builder).wrap();
-    let layout = Flex::column()
-        .with_child(menu_btns)
-        .with_child(gallery_list);
-
-    let container = Container::new(layout)
-        .background(Color::WHITE)
-        .controller(MainViewController);
-
-    Box::new(Scroll::new(container).vertical())
-}
-
-pub fn check_folder_has_images(
-    entry: &DirEntry,
-) -> (Vector<Thumbnail>, Vector<Arc<PathBuf>>) {
-    let mut images = Vector::new();
-    let mut paths = Vector::new();
-    let entries = fs::read_dir(entry.path()).unwrap();
-    for file in entries {
-        let file = file.unwrap();
-        if file.path().is_file() {
-            match Reader::open(file.path()) {
-                Ok(image) => match image.format() {
-                    Some(image::ImageFormat::Png)
-                    | Some(image::ImageFormat::Jpeg) => {}
-                    Some(_) | None => continue,
-                },
-                Err(err) => {
-                    error!("Error opening file: {}", err);
-                    continue;
-                }
-            };
-            images.push_back(Thumbnail {
-                index: images.len(),
-                image: ImageBuf::empty(),
-            });
-            paths.push_back(Arc::new(file.path().to_path_buf()));
-        }
-    }
-    (images, paths)
-}
-
-fn read_directory(entry: &Path) -> (Vector<Thumbnail>, Vector<Arc<PathBuf>>) {
-    let mut images = Vector::new();
-    let mut paths = Vector::new();
-    dbg!(entry);
-    let entries = fs::read_dir(entry).unwrap();
-    for file in entries {
-        let file = file.unwrap();
-        if file.path().is_file() {
-            let image = match Reader::open(file.path()) {
-                Ok(image) => image,
-                Err(err) => {
-                    error!("Error opening file: {}", err);
-                    continue;
-                }
-            };
-            let image = match image.decode() {
-                Ok(image) => image,
-                Err(_) => {
-                    continue;
-                }
-            }
-            .to_rgb8();
-            images.push_back(create_thumbnail(images.len(), image));
-            paths.push_back(Arc::new(file.path().to_owned()));
-        }
-    }
-    (images, paths)
-}
-
-fn create_thumbnail(index: usize, image: RgbImage) -> Thumbnail {
-    let (width, height) = image.dimensions();
-    let (new_width, new_height) = {
-        let max_height = 150.0;
-        let scale = max_height / height as f64;
-        let scaled_width = width as f64 * scale;
-        let scaled_height = height as f64 * scale;
-        (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
-    };
-    let image = thumbnail(&image, new_width, new_height);
-    let (width, height) = image.dimensions();
-    let image = ImageBuf::from_raw(
-        image.into_raw(),
-        ImageFormat::Rgb,
-        width as usize,
-        height as usize,
-    );
-    Thumbnail { index, image }
-}
+use super::FolderThumbnailController;
 
 pub fn folder_navigator() -> Box<dyn Widget<AppState>> {
     let navigator = Navigator::new(FolderView::Folder, folder_view_main)
@@ -309,15 +136,6 @@ pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
     Box::new(layout)
 }
 
-pub fn create_thumbnail_from_path(
-    path: &Path,
-    idx: usize,
-) -> Result<Thumbnail, ImageError> {
-    let image = Reader::open(path)?;
-    let image = image.decode()?.to_rgb8();
-    Ok(create_thumbnail(idx, image))
-}
-
 pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
     let back_button = Button::new(
         "←",
@@ -328,7 +146,6 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
         16.,
     )
     .on_click(|ctx, _data, _env| {
-        // dbg!("clicked back btn");
         ctx.submit_command(Command::new(POP_FOLDER_VIEW, (), Target::Auto));
     })
     .align_left();
@@ -353,7 +170,6 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
         }
 
         data.selected_image -= 1;
-        dbg!("clicked left", data.selected_image);
     })
     .fix_width(button_width)
     .expand_height();
@@ -361,14 +177,12 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
     let right_button =
         Button::new("❯", font_color, bg_color, hover_color, active_color, 16.)
             .on_click(|_ctx, data: &mut FolderGalleryState, _env| {
-                // dbg!(&data);
                 if data.paths.is_empty()
                     || data.selected_image == data.paths.len() - 1
                 {
                     return;
                 }
                 data.selected_image += 1;
-                dbg!("clicked right", data.selected_image);
             })
             .fix_width(button_width)
             .expand_height();
@@ -512,3 +326,72 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
 //             .controller(AppStateController {}),
 //     )
 // }
+//         .background(Color::rgb8(0xee, 0xee, 0xee))
+//         .expand_width();
+
+//     let layout = Flex::column()
+//         .must_fill_main_axis(true)
+//         .with_flex_child(image_view, FlexParams::new(1.0, None))
+//         .with_child(film_strip_view);
+
+//     Box::new(
+//         Container::new(layout)
+//             .background(druid::Color::rgb8(255, 255, 255))
+//             .controller(AppStateController {}),
+//     )
+// }
+
+fn create_thumbnail(index: usize, image: RgbImage) -> Thumbnail {
+    let (width, height) = image.dimensions();
+    let (new_width, new_height) = {
+        let max_height = 150.0;
+        let scale = max_height / height as f64;
+        let scaled_width = width as f64 * scale;
+        let scaled_height = height as f64 * scale;
+        (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
+    };
+    let image = thumbnail(&image, new_width, new_height);
+    let (width, height) = image.dimensions();
+    let image = ImageBuf::from_raw(
+        image.into_raw(),
+        ImageFormat::Rgb,
+        width as usize,
+        height as usize,
+    );
+    Thumbnail { index, image }
+}
+
+pub fn create_thumbnail_from_path(
+    path: &Path,
+    idx: usize,
+) -> Result<Thumbnail, ImageError> {
+    let image = Reader::open(path)?;
+    let image = image.decode()?.to_rgb8();
+    Ok(create_thumbnail(idx, image))
+}
+
+struct ImageViewController;
+
+impl Controller<FolderGalleryState, Container<FolderGalleryState>>
+    for ImageViewController
+{
+    fn event(
+        &mut self,
+        child: &mut Container<FolderGalleryState>,
+        ctx: &mut druid::EventCtx,
+        event: &Event,
+        data: &mut FolderGalleryState,
+        env: &Env,
+    ) {
+        match event {
+            Event::Command(select_image)
+                if select_image.is(SELECT_IMAGE_SELECTOR) =>
+            {
+                let index = select_image.get_unchecked(SELECT_IMAGE_SELECTOR);
+                data.selected_image = *index;
+            }
+            _ => (),
+        }
+        child.event(ctx, event, data, env);
+    }
+}

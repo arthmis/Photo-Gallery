@@ -1,4 +1,4 @@
-use data::{AppState, AppView};
+use app_data::AppState;
 use druid::{
     im::{vector, HashSet, Vector},
     AppLauncher, Widget, WindowDesc,
@@ -6,13 +6,15 @@ use druid::{
 
 // use druid_widget_nursery::navigator::{Navigator, View, ViewController};
 use druid_navigator::navigator::Navigator;
+use folder_view::folder_navigator;
 use log::error;
-use view::{folder_navigator, main_view};
+use main_view::{main_view, AppView};
 
 mod app_commands;
-mod data;
-mod view;
-mod widgets;
+mod app_data;
+mod folder_view;
+mod main_view;
+pub mod widgets;
 
 fn main() {
     let window = WindowDesc::new(navigator).title("Gallery");
