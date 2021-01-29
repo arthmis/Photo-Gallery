@@ -37,13 +37,14 @@ use crate::{
     },
     AppState,
 };
-use crate::{widget::Button, Scroll};
+use crate::{widgets::Button, widgets::Scroll};
 // use druid::widget::Scroll;
 
 fn image_gridview_builder() -> impl Widget<(ImageFolder, usize)> {
     // this lenses into the image folder found in the tuple
     let thumbnails_lens = lens!((ImageFolder, usize), 0)
         .map(|data| data.thumbnails.clone(), |_folder, _put| ());
+
     // this will display the folder name
     let folder_name =
         Label::dynamic(|(folder, _idx): &(ImageFolder, usize), _env| {
@@ -67,8 +68,6 @@ fn image_gridview_builder() -> impl Widget<(ImageFolder, usize)> {
             ctx.fill(rect, &background_color);
         }))
         .on_click(|ctx, (_folder, idx), _env| {
-            // dbg!("clicking on folder");
-            // dbg!(folder.name.clone());
             ctx.submit_command(Command::new(
                 SELECTED_FOLDER,
                 *idx,
@@ -81,6 +80,7 @@ fn image_gridview_builder() -> impl Widget<(ImageFolder, usize)> {
         .lens(thumbnails_lens.index(0))
         .fix_size(300., 300.);
 
+    // modify this to have consistent sizes
     Flex::column()
         .with_child(folder_name)
         .with_child(thumbnail)
@@ -96,7 +96,12 @@ pub fn main_view() -> Box<dyn Widget<AppState>> {
         Color::rgb8(0x9f, 0x9f, 0x9f),
         16.,
     )
+    .on_click(|ctx, _data, _env| {
+        let file_dialog = FileDialogOptions::new().select_directories();
+        ctx.submit_command(SHOW_OPEN_PANEL.with(file_dialog));
+    })
     .fix_height(50.);
+
     let menu_btns = Container::new(
         Flex::row()
             .with_child(add_folder_btn)
@@ -104,11 +109,7 @@ pub fn main_view() -> Box<dyn Widget<AppState>> {
             .main_axis_alignment(MainAxisAlignment::End)
             .fix_height(40.),
     )
-    .border(Color::from_hex_str("#aaaaaa").unwrap(), 1.)
-    .on_click(|ctx, _data, _env| {
-        let file_dialog = FileDialogOptions::new().select_directories();
-        ctx.submit_command(SHOW_OPEN_PANEL.with(file_dialog));
-    });
+    .border(Color::rgb8(0xcc, 0xcc, 0xcc), 1.);
 
     let gallery_list = GridView::new(image_gridview_builder).wrap();
     let layout = Flex::column()
@@ -118,63 +119,10 @@ pub fn main_view() -> Box<dyn Widget<AppState>> {
     let container = Container::new(layout)
         .background(Color::WHITE)
         .controller(MainViewController);
-    // .on_added(|_self, ctx, data, _env| {
-    //     let handle = ctx.get_external_handle();
-    //     let folders = data.images.clone();
-    //     thread::spawn(move || {
-    //         if folders.is_empty() {
-    //             return;
-    //         }
-    //         for item in folders.iter() {
-    //             let entries = WalkDir::new(item.as_ref())
-    //                 .into_iter()
-    //                 .filter_entry(|entry| {
-    //                     // only walks directories, not files, and only keeps directories
-    //                     // that don't fail to read and are not empty
-    //                     if entry.path().is_dir() {
-    //                         match read_dir(entry.path()) {
-    //                             Ok(mut dir) => dir.next().is_some(),
-    //                             Err(_) => false,
-    //                         }
-    //                     } else {
-    //                         false
-    //                     }
-    //                 });
-    //             for (_i, entry) in entries.enumerate() {
-    //                 let entry = entry.unwrap();
-    //                 let (thumbnails, paths) =
-    //                     check_folder_has_images(&entry);
-    //                 if !thumbnails.is_empty() {
-    //                     let image_folder = ImageFolder {
-    //                         paths,
-    //                         thumbnails,
-    //                         name: Arc::new(entry.path().to_path_buf()),
-    //                         selected: None,
-    //                     };
-    //                     handle
-    //                         .submit_command(
-    //                             FINISHED_READING_FOLDER_IMAGE,
-    //                             image_folder,
-    //                             Target::Auto,
-    //                         )
-    //                         .unwrap();
-    //                 }
-    //             }
-    //         }
-    //         handle
-    //             .submit_command(
-    //                 FINISHED_READING_ALL_PATHS,
-    //                 (),
-    //                 Target::Auto,
-    //             )
-    //             .unwrap();
-    //     });
-    // });
-    // Box::new(container)
+
     Box::new(Scroll::new(container).vertical())
 }
 
-// fn get_thumbnail_placeholders(entry: &DirEntry) -> (Vector<Thumbnail>, Vector<Arc<PathBuf>>)
 pub fn check_folder_has_images(
     entry: &DirEntry,
 ) -> (Vector<Thumbnail>, Vector<Arc<PathBuf>>) {
@@ -205,7 +153,7 @@ pub fn check_folder_has_images(
     (images, paths)
 }
 
-fn _read_directory(entry: &Path) -> (Vector<Thumbnail>, Vector<Arc<PathBuf>>) {
+fn read_directory(entry: &Path) -> (Vector<Thumbnail>, Vector<Arc<PathBuf>>) {
     let mut images = Vector::new();
     let mut paths = Vector::new();
     dbg!(entry);
@@ -257,11 +205,13 @@ fn create_thumbnail(index: usize, image: RgbImage) -> Thumbnail {
 pub fn folder_navigator() -> Box<dyn Widget<AppState>> {
     let navigator = Navigator::new(FolderView::Folder, folder_view_main)
         .with_view_builder(FolderView::SingleImage, image_view_builder);
+
     let scope = Scope::from_function(
         FolderGalleryState::new,
         GalleryTransfer,
         navigator,
     );
+
     Box::new(scope)
 }
 
@@ -281,11 +231,8 @@ pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
         16.,
     )
     .on_click(|ctx, _data, _env| {
-        // dbg!("clicked back btn");
-        // dbg!(data);
         ctx.submit_command(Command::new(POP_VIEW, (), Target::Auto));
     });
-    // .fix_width(50.);
 
     let title = Label::dynamic(|data: &String, _env| data.clone())
         .with_text_color(Color::BLACK)
@@ -293,6 +240,7 @@ pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
             |data| data.to_string_lossy().to_owned().to_string(),
             |_path, _data_path| (),
         ));
+
     let header = Flex::row()
         .with_child(back_button)
         .with_spacer(10.)
@@ -328,6 +276,7 @@ pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
             })
     })
     .wrap();
+
     let gallery = gallery.align_left();
     let gallery =
         DynamicSizedBox::new(Scroll::new(gallery).vertical().expand_width())
@@ -339,6 +288,7 @@ pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
         .expand_width()
         .background(Color::WHITE)
         .controller(FolderViewController)
+        // TODO: this shouldn't do any work if this folder was loaded previously
         .on_added(|_self, ctx, data, _env| {
             let handle = ctx.get_external_handle();
             let image_paths = data.paths.clone();
@@ -368,7 +318,6 @@ pub fn create_thumbnail_from_path(
     Ok(create_thumbnail(idx, image))
 }
 
-// pub fn image_view_builder() -> Box<dyn Widget<AppState>> {
 pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
     let back_button = Button::new(
         "←",
@@ -390,7 +339,7 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
     let hover_color = Color::rgb8(0xcc, 0xcc, 0xcc);
     let active_color = Color::rgb8(0x90, 0x90, 0x90);
 
-    let left_button = crate::widget::Button::new(
+    let left_button = Button::new(
         "❮",
         font_color.clone(),
         bg_color.clone(),
@@ -399,7 +348,6 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
         16.,
     )
     .on_click(|_ctx, data: &mut FolderGalleryState, _env| {
-        // dbg!(&data.);
         if data.paths.is_empty() || data.selected_image == 0 {
             return;
         }
@@ -410,39 +358,31 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
     .fix_width(button_width)
     .expand_height();
 
-    let right_button = crate::widget::Button::new(
-        "❯",
-        font_color,
-        bg_color,
-        hover_color,
-        active_color,
-        16.,
-    )
-    .on_click(|_ctx, data: &mut FolderGalleryState, _env| {
-        // dbg!(&data);
-        if data.paths.is_empty() || data.selected_image == data.paths.len() - 1
-        {
-            return;
-        }
-        data.selected_image += 1;
-        dbg!("clicked right", data.selected_image);
-    })
-    .fix_width(button_width)
-    .expand_height();
+    let right_button =
+        Button::new("❯", font_color, bg_color, hover_color, active_color, 16.)
+            .on_click(|_ctx, data: &mut FolderGalleryState, _env| {
+                // dbg!(&data);
+                if data.paths.is_empty()
+                    || data.selected_image == data.paths.len() - 1
+                {
+                    return;
+                }
+                data.selected_image += 1;
+                dbg!("clicked right", data.selected_image);
+            })
+            .fix_width(button_width)
+            .expand_height();
 
     let image = Image::new(ImageBuf::empty())
         .interpolation_mode(InterpolationMode::Bilinear)
         .fill_mode(FillStrat::Contain)
         .controller(DisplayImageController::new());
-    // let image =
-    //     DisplayImage::new(image).padding(Insets::new(0.0, 5.0, 0.0, 5.0));
 
     let left_side_buttons = Flex::column()
         .with_child(back_button)
         .with_flex_child(left_button, 1.0);
     let image_view = Flex::row()
         .must_fill_main_axis(true)
-        // .with_child(left_button)
         .with_child(left_side_buttons)
         .with_flex_child(image, FlexParams::new(1.0, None))
         .with_child(right_button)
@@ -451,15 +391,16 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
 
     let layout = Flex::column()
         .must_fill_main_axis(true)
-        // .with_child(back_button)
         .with_flex_child(image_view, FlexParams::new(1.0, None));
 
     let container = Container::new(layout)
         .background(druid::Color::rgb8(255, 255, 255))
         .controller(ImageViewController);
+
     Box::new(container)
 }
 
+// TODO: this will eventually be an alternative view for the folder view
 // pub fn filmstrip_view_builder() -> Box<dyn Widget<AppState>> {
 //     let button_width = 50.0;
 //     let font_color = Color::rgb8(0, 0, 0);

@@ -1,6 +1,6 @@
 use std::{
     fs::read_dir,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         mpsc::{sync_channel, Receiver, SyncSender},
         Arc,
@@ -19,7 +19,6 @@ use druid::{
 use druid_gridview::GridIter;
 use druid_navigator::navigator::{View, ViewController};
 use image::{imageops::thumbnail, io::Reader, ImageError, RgbImage};
-use log::error;
 use walkdir::WalkDir;
 
 use crate::{
@@ -34,36 +33,14 @@ use crate::{
 
 #[derive(Clone, Data, Lens, Debug)]
 pub struct AppState {
-    // pub images: Arc<Vec<PathBuf>>,
     pub images: HashSet<Arc<PathBuf>>,
     pub current_image_idx: usize,
     pub thumbnails: Vector<Thumbnail>,
     pub views: Vector<AppView>,
     pub all_images: Vector<ImageFolder>,
     pub selected_folder: Option<usize>,
-    // pub test_text: Vector<String>,
 }
 
-// impl ListIter<(ImageFolder, usize)> for AppState {
-//     fn for_each(&self, mut cb: impl FnMut(&(ImageFolder, usize), usize)) {
-//         for (i, image_folder) in self.all_images.iter().enumerate() {
-//             cb(&(image_folder.clone(), i), i)
-//         }
-//     }
-
-//     fn for_each_mut(
-//         &mut self,
-//         mut cb: impl FnMut(&mut (ImageFolder, usize), usize),
-//     ) {
-//         for (i, image_folder) in self.all_images.iter_mut().enumerate() {
-//             cb(&mut (image_folder.clone(), i), i)
-//         }
-//     }
-
-//     fn data_len(&self) -> usize {
-//         self.all_images.len()
-//     }
-// }
 impl GridIter<(ImageFolder, usize)> for AppState {
     fn for_each(&self, mut cb: impl FnMut(&(ImageFolder, usize), usize)) {
         for (i, image_folder) in self.all_images.iter().enumerate() {
@@ -99,7 +76,6 @@ impl GridIter<(ImageFolder, usize)> for AppState {
         }
     }
 }
-// impl GridIter<()
 
 #[derive(Debug, Clone, Data, PartialEq, Hash, Eq)]
 pub enum AppView {
@@ -189,7 +165,6 @@ impl Controller<AppState, Container<AppState>> for MainViewController {
             }
             Event::Command(cmd) if cmd.is(OPEN_FILE) => {
                 let file_info = cmd.get_unchecked(OPEN_FILE);
-                // dbg!(file_info.path());
                 let handle = ctx.get_external_handle();
                 let folders = data.images.clone();
                 flatten_and_add_paths(
@@ -198,10 +173,6 @@ impl Controller<AppState, Container<AppState>> for MainViewController {
                     handle,
                 );
             }
-            // Event::Command(selector) if selector.is(PUSH_VIEW) => {
-            //     let view = selector.get_unchecked(PUSH_VIEW);
-            //     data.add_view(view.clone());
-            // }
             _ => {}
         }
         child.event(ctx, event, data, env)
@@ -213,9 +184,6 @@ fn flatten_and_add_paths(
     handle: ExtEventSink,
 ) {
     thread::spawn(move || {
-        // if current_folders.is_empty() {
-        //     return;
-        // }
         dbg!(&path);
         let entries = WalkDir::new(path).into_iter().filter_entry(|entry| {
             // only walks directories, not files, and only keeps directories
@@ -267,6 +235,7 @@ fn flatten_and_add_paths(
             .unwrap();
     });
 }
+
 fn create_first_image_thumbnail(
     folder: &ImageFolder,
 ) -> Result<Thumbnail, ImageError> {
@@ -308,110 +277,17 @@ impl Controller<FolderGalleryState, Container<FolderGalleryState>>
         env: &Env,
     ) {
         match event {
-            // Event::Command(open) if open.is(OPEN_SELECTOR) => {
-            //     // I don't know if this is right
-            //     // if I don't return here, the application crashes everytime
-            //     // I close it because of unwrap() and can't find selector
-            //     // is the command being sent periodically?
-            //     let payload: &FileInfo = open.get_unchecked(Selector::new(
-            //         "druid-builtin.open-file-path",
-            //     ));
-
-            //     let path = payload.path();
-            //     let sink = ctx.get_external_handle();
-            //     read_images(sink, path.to_owned());
-            // }
             Event::Command(select_image)
                 if select_image.is(SELECT_IMAGE_SELECTOR) =>
             {
                 let index = select_image.get_unchecked(SELECT_IMAGE_SELECTOR);
                 data.selected_image = *index;
             }
-            // Event::Command(paths) if paths.is(FINISHED_READING_FOLDER) => {
-            //     let (paths, thumbnails) =
-            //         paths.get_unchecked(FINISHED_READING_FOLDER).clone();
-            //     data.images = paths;
-            //     data.current_image_idx = 0;
-            //     data.thumbnails = thumbnails;
-            // }
-            // Event::Command(selector) if selector.is(CREATED_THUMBNAIL) => {
-            //     let thumbnail = selector.get_unchecked(CREATED_THUMBNAIL);
-            //     data.thumbnails[thumbnail.index] = thumbnail.clone();
-            // }
             _ => (),
         }
         child.event(ctx, event, data, env);
     }
 }
-// pub struct AppStateController;
-
-// impl Controller<AppState, Container<AppState>> for AppStateController {
-//     fn event(
-//         &mut self,
-//         child: &mut Container<AppState>,
-//         ctx: &mut druid::EventCtx,
-//         event: &Event,
-//         data: &mut AppState,
-//         env: &Env,
-//     ) {
-//         match event {
-//             Event::Command(open) if open.is(OPEN_SELECTOR) => {
-//                 // I don't know if this is right
-//                 // if I don't return here, the application crashes everytime
-//                 // I close it because of unwrap() and can't find selector
-//                 // is the command being sent periodically?
-//                 let payload: &FileInfo = open.get_unchecked(Selector::new(
-//                     "druid-builtin.open-file-path",
-//                 ));
-
-//                 let path = payload.path();
-//                 let sink = ctx.get_external_handle();
-//                 read_images(sink, path.to_owned());
-//             }
-//             Event::Command(select_image)
-//                 if select_image.is(SELECT_IMAGE_SELECTOR) =>
-//             {
-//                 let index = select_image.get_unchecked(SELECT_IMAGE_SELECTOR);
-//                 data.current_image_idx = *index;
-//             }
-//             Event::Command(paths) if paths.is(FINISHED_READING_FOLDER) => {
-//                 let (paths, thumbnails) =
-//                     paths.get_unchecked(FINISHED_READING_FOLDER).clone();
-//                 data.images = paths;
-//                 data.current_image_idx = 0;
-//                 data.thumbnails = thumbnails;
-//             }
-//             Event::Command(selector) if selector.is(CREATED_THUMBNAIL) => {
-//                 let thumbnail = selector.get_unchecked(CREATED_THUMBNAIL);
-//                 data.thumbnails[thumbnail.index] = thumbnail.clone();
-//             }
-//             _ => (),
-//         }
-//         child.event(ctx, event, data, env);
-//     }
-// }
-
-// impl ListIter<(usize, Thumbnail)> for AppState {
-//     fn for_each(&self, mut cb: impl FnMut(&(usize, Thumbnail), usize)) {
-//         for (i, item) in self.thumbnails.iter().enumerate() {
-//             cb(&(self.current_image_idx, item.to_owned()), i);
-//         }
-//     }
-
-//     fn for_each_mut(
-//         &mut self,
-//         mut cb: impl FnMut(&mut (usize, Thumbnail), usize),
-//     ) {
-//         for (i, item) in self.thumbnails.iter().enumerate() {
-//             let owned_item = item.to_owned();
-//             cb(&mut (self.current_image_idx, owned_item.clone()), i);
-//         }
-//     }
-
-//     fn data_len(&self) -> usize {
-//         self.thumbnails.len()
-//     }
-// }
 
 #[derive(Clone, Lens, Debug)]
 pub struct Thumbnail {
@@ -430,6 +306,7 @@ impl Data for Thumbnail {
 }
 
 pub struct GalleryThumbnailController;
+
 impl Controller<Thumbnail, Image> for GalleryThumbnailController {
     fn lifecycle(
         &mut self,
@@ -508,39 +385,6 @@ impl Controller<(Thumbnail, usize), Image> for FolderThumbnailController {
         }
         child.update(ctx, old_data, data, env)
     }
-    // fn lifecycle(
-    //     &mut self,
-    //     child: &mut Image,
-    //     ctx: &mut druid::LifeCycleCtx,
-    //     event: &LifeCycle,
-    //     data: &Thumbnail,
-    //     env: &Env,
-    // ) {
-    //     if let LifeCycle::WidgetAdded = event {
-    //         child.set_image_data(data.image.clone());
-    //         ctx.request_layout();
-    //         ctx.request_paint();
-    //     }
-    //     child.lifecycle(ctx, event, data, env)
-    // }
-
-    // fn update(
-    //     &mut self,
-    //     child: &mut Image,
-    //     ctx: &mut druid::UpdateCtx,
-    //     old_data: &Thumbnail,
-    //     data: &Thumbnail,
-    //     env: &Env,
-    // ) {
-    //     let old_image = old_data;
-    //     let current_image = data;
-    //     if !current_image.same(old_image) {
-    //         child.set_image_data(current_image.image.clone());
-    //         ctx.request_layout();
-    //         ctx.request_paint();
-    //     }
-    //     child.update(ctx, old_data, data, env)
-    // }
 }
 pub struct ThumbnailController;
 
@@ -608,6 +452,7 @@ pub struct FolderGalleryState {
     pub views: Vector<FolderView>,
     pub paths: Vector<Arc<PathBuf>>,
 }
+
 impl FolderGalleryState {
     pub fn new(state: AppState) -> Self {
         if let Some(idx) = state.selected_folder {
@@ -631,6 +476,7 @@ impl FolderGalleryState {
         }
     }
 }
+
 impl ViewController<FolderView> for FolderGalleryState {
     fn add_view(&mut self, view: FolderView) {
         self.views.push_back(view);
@@ -661,6 +507,7 @@ pub enum FolderView {
 impl View for FolderView {}
 
 pub struct FolderViewController;
+
 impl Controller<FolderGalleryState, Container<FolderGalleryState>>
     for FolderViewController
 {
@@ -681,11 +528,6 @@ impl Controller<FolderGalleryState, Container<FolderGalleryState>>
                 data.add_view(view.clone());
                 data.selected_image = *idx;
             }
-            // Event::Command(cmd) if cmd.is(FINISHED_READING_IMAGE_FOLDER) => {
-            //     let thumbnails =
-            //         cmd.get_unchecked(FINISHED_READING_IMAGE_FOLDER);
-            //     data.images = thumbnails.clone();
-            // }
             Event::Command(cmd) if cmd.is(CREATED_THUMBNAIL) => {
                 let thumbnail = cmd.get_unchecked(CREATED_THUMBNAIL);
                 // TODO: this isn't workign correctly because this can be out of bounds
@@ -698,28 +540,6 @@ impl Controller<FolderGalleryState, Container<FolderGalleryState>>
             _ => (),
         }
         child.event(ctx, event, data, env)
-    }
-
-    fn lifecycle(
-        &mut self,
-        child: &mut Container<FolderGalleryState>,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &FolderGalleryState,
-        env: &Env,
-    ) {
-        child.lifecycle(ctx, event, data, env)
-    }
-
-    fn update(
-        &mut self,
-        child: &mut Container<FolderGalleryState>,
-        ctx: &mut UpdateCtx,
-        old_data: &FolderGalleryState,
-        data: &FolderGalleryState,
-        env: &Env,
-    ) {
-        child.update(ctx, old_data, data, env)
     }
 }
 
@@ -789,16 +609,6 @@ impl ScopeTransfer for GalleryTransfer {
                 dbg!("Nothing should be read or maybe it should");
             }
         }
-        // if let Some(idx) = inner.selected_folder {
-        //     let folder = &inner.all_images[idx];
-        //     state.selected_folder = Some(idx);
-        //     state.name = folder.name.clone();
-        //     state.images = folder.thumbnails.clone();
-        //     state.paths = folder.paths.clone();
-        // } else {
-        //     state.name = "".to_string();
-        //     state.images = Vector::new();
-        // }
     }
 
     fn write_back_input(&self, state: &Self::State, inner: &mut Self::In) {
@@ -831,8 +641,6 @@ impl DisplayImageController {
         std::thread::spawn(move || {
             let image = image::io::Reader::open(path)
                 .unwrap()
-                // .with_guessed_format()
-                // .unwrap()
                 .decode()
                 .unwrap()
                 .into_rgb8();
@@ -883,9 +691,7 @@ impl Controller<FolderGalleryState, Image> for DisplayImageController {
         if data.paths.is_empty() {
             return;
         }
-        if data.selected_image != old_data.selected_image
-        // || data.paths != old_data.paths
-        {
+        if data.selected_image != old_data.selected_image {
             let path = data.paths[data.selected_image].as_ref().clone();
             let sink = ctx.get_external_handle();
             // only need to send this payload back to itself

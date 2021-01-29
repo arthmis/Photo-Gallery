@@ -14,7 +14,7 @@
 
 //! A container that scrolls its contents.
 
-use crate::scroll_component::*;
+use crate::widgets::scroll_component::*;
 use druid::widget::prelude::*;
 use druid::widget::ClipBox;
 use druid::{Data, Rect, Vec2};
