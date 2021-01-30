@@ -137,6 +137,7 @@ pub fn folder_view_main() -> Box<dyn Widget<FolderGalleryState>> {
 }
 
 pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
+    let button_width = 50.0;
     let back_button = Button::new(
         "←",
         Color::BLACK,
@@ -148,9 +149,9 @@ pub fn image_view_builder() -> Box<dyn Widget<FolderGalleryState>> {
     .on_click(|ctx, _data, _env| {
         ctx.submit_command(Command::new(POP_FOLDER_VIEW, (), Target::Auto));
     })
-    .align_left();
+    .align_left()
+    .fix_width(button_width);
 
-    let button_width = 50.0;
     let font_color = Color::rgb8(0, 0, 0);
     let bg_color = Color::rgb8(0xff, 0xff, 0xff);
     let hover_color = Color::rgb8(0xcc, 0xcc, 0xcc);

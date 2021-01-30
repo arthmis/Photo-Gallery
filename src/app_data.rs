@@ -11,9 +11,8 @@ use crate::main_view::AppView;
 
 #[derive(Clone, Data, Lens, Debug)]
 pub struct AppState {
-    pub images: HashSet<Arc<PathBuf>>,
+    pub folder_paths: HashSet<Arc<PathBuf>>,
     pub current_image_idx: usize,
-    pub thumbnails: Vector<Thumbnail>,
     pub views: Vector<AppView>,
     pub all_images: Vector<ImageFolder>,
     pub selected_folder: Option<usize>,
@@ -22,6 +21,7 @@ pub struct AppState {
 #[derive(Debug, Clone, Data, Lens)]
 pub struct ImageFolder {
     pub name: Arc<PathBuf>,
+    pub folder_thumbnail: Thumbnail,
     pub paths: Vector<Arc<PathBuf>>,
     pub selected: Option<usize>,
     pub thumbnails: Vector<Thumbnail>,

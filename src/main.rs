@@ -21,9 +21,8 @@ fn main() {
 
     match AppLauncher::with_window(window).use_simple_logger().launch(
         AppState {
-            images: HashSet::new(),
+            folder_paths: HashSet::new(),
             current_image_idx: 0,
-            thumbnails: Vector::new(),
             // this will back the Navigator, so it always has to be initialized with something
             views: vector![AppView::MainView],
             all_images: Vector::new(),

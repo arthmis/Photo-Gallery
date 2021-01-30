@@ -14,7 +14,10 @@ use druid::{
 };
 use druid_gridview::GridIter;
 use druid_navigator::navigator::{View, ViewController};
-use image::{imageops::thumbnail, io::Reader, ImageError};
+use image::{
+    imageops::thumbnail, io::Reader, GenericImageView, ImageError, RgbImage,
+    SubImage,
+};
 use log::error;
 use walkdir::{DirEntry, WalkDir};
 
@@ -52,6 +55,10 @@ impl GridIter<(ImageFolder, usize)> for AppState {
             None => Some((
                 ImageFolder {
                     name: Arc::new(PathBuf::from("".to_owned())),
+                    folder_thumbnail: Thumbnail {
+                        index: 0,
+                        image: ImageBuf::empty(),
+                    },
                     paths: Vector::new(),
                     selected: None,
                     thumbnails: Vector::new(),
@@ -64,6 +71,7 @@ impl GridIter<(ImageFolder, usize)> for AppState {
 #[derive(Debug, Clone, Data, PartialEq, Hash, Eq)]
 pub enum AppView {
     MainView,
+    // this will eventually be used when opening a single file for viewing
     ImageView,
     FolderView,
 }
@@ -118,14 +126,12 @@ impl Controller<AppState, Container<AppState>> for MainViewController {
                 data.add_view(AppView::FolderView);
             }
             Event::Command(selector) if selector.is(POP_VIEW) => {
-                dbg!(data.views.len());
                 data.pop_view();
-                dbg!(data.views.len());
             }
             Event::Command(cmd) if cmd.is(FINISHED_READING_ALL_PATHS) => {
                 let current_folders =
                     cmd.get_unchecked(FINISHED_READING_ALL_PATHS);
-                data.images = current_folders.clone();
+                data.folder_paths = current_folders.clone();
                 let handle = ctx.get_external_handle();
                 let folders = data.all_images.clone();
                 thread::spawn(move || {
@@ -145,12 +151,13 @@ impl Controller<AppState, Container<AppState>> for MainViewController {
             Event::Command(cmd) if cmd.is(CREATED_FIRST_IMAGE_THUMBNAIL) => {
                 let (thumbnail, folder_idx) =
                     cmd.get_unchecked(CREATED_FIRST_IMAGE_THUMBNAIL);
-                data.all_images[*folder_idx].thumbnails[0] = thumbnail.clone();
+                data.all_images[*folder_idx].folder_thumbnail =
+                    thumbnail.clone();
             }
             Event::Command(cmd) if cmd.is(OPEN_FILE) => {
                 let file_info = cmd.get_unchecked(OPEN_FILE);
                 let handle = ctx.get_external_handle();
-                let folders = data.images.clone();
+                let folders = data.folder_paths.clone();
                 flatten_and_add_paths(
                     file_info.path().to_path_buf(),
                     folders,
@@ -162,6 +169,7 @@ impl Controller<AppState, Container<AppState>> for MainViewController {
         child.event(ctx, event, data, env)
     }
 }
+
 fn flatten_and_add_paths(
     path: PathBuf,
     mut current_folders: HashSet<Arc<PathBuf>>,
@@ -194,6 +202,10 @@ fn flatten_and_add_paths(
                 current_folders.insert(Arc::new(current_folder.clone()));
                 let image_folder = ImageFolder {
                     paths,
+                    folder_thumbnail: Thumbnail {
+                        index: 0,
+                        image: ImageBuf::empty(),
+                    },
                     thumbnails,
                     name: Arc::new(current_folder),
                     selected: None,
@@ -255,10 +267,11 @@ fn create_first_image_thumbnail(
         .with_guessed_format()?
         .decode()?
         .to_rgb8();
+    const THUMBNAIL_HEIGHT_MAX: f64 = 250.;
+    let image = find_largest_square_crop(&image);
     let (width, height) = image.dimensions();
     let (new_width, new_height) = {
-        let max_height = 150.0;
-        let scale = max_height / height as f64;
+        let scale = THUMBNAIL_HEIGHT_MAX / height as f64;
         let scaled_width = width as f64 * scale;
         let scaled_height = height as f64 * scale;
         (scaled_width.trunc() as u32, scaled_height.trunc() as u32)
@@ -273,4 +286,28 @@ fn create_first_image_thumbnail(
     );
 
     Ok(Thumbnail { index: 0, image })
+}
+
+fn find_largest_square_crop(
+    image: &RgbImage,
+) -> SubImage<&image::ImageBuffer<image::Rgb<u8>, std::vec::Vec<u8>>> {
+    let (width, height) = image.dimensions();
+
+    // checks if already a square image
+    if width == height {
+        return image.view(0, 0, width, width);
+    }
+
+    let new_len = width.min(height);
+
+    // image is in portrait orientation
+    if new_len == width {
+        let offset = (height - new_len) / 2;
+        image.view(0, offset, new_len, new_len)
+    }
+    // image is in landscape orientation
+    else {
+        let offset = (width - new_len) / 2;
+        image.view(offset, 0, new_len, new_len)
+    }
 }
