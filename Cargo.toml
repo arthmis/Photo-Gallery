@@ -18,3 +18,6 @@ druid-widget-nursery= { git= "https://github.com/linebender/druid-widget-nursery
 image = "0.23"
 walkdir = "2"
 log = "0.4.13"
+
+[profile.release]
+lto = true

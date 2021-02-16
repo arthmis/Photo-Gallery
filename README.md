@@ -1,6 +1,9 @@
 # image-viewer
 Image viewer created with [Druid](https://github.com/linebender/druid).
 
+## Demo
+[This link](https://arthmis.github.io/projects/#photo-gallery) will show you a demo of the current photo gallery.
+
 Example:
 ![Example of app](image-viewer-example.gif)
 
