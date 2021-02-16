@@ -13,11 +13,12 @@ on MacOS to see if there are any issues.
 ## Build & Run
 You will need to install [Rust](https://www.rust-lang.org/) in order to run this project. These are the [installation instructions](https://www.rust-lang.org/learn/get-started).
 
-To run the project:
+To run the project, type this in your terminal:
 
 ```
 cargo run --release
 ```
+
 This will build the project and start the application.
 
  
